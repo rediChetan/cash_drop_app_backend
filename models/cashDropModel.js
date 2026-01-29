@@ -1,0 +1,104 @@
+import pool from '../config/database.js';
+
+export const CashDrop = {
+  create: async (data) => {
+    const [result] = await pool.execute(`
+      INSERT INTO cash_drops (
+        user_id, drawer_entry_id, workstation, shift_number, date,
+        drop_amount, hundreds, fifties, twenties, tens, fives, twos, ones,
+        half_dollars, quarters, dimes, nickels, pennies,
+        ws_label_amount, variance, label_image, notes, submitted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      data.user_id,
+      data.drawer_entry_id || null,
+      data.workstation,
+      data.shift_number,
+      data.date,
+      data.drop_amount,
+      data.hundreds || 0,
+      data.fifties || 0,
+      data.twenties || 0,
+      data.tens || 0,
+      data.fives || 0,
+      data.twos || 0,
+      data.ones || 0,
+      data.half_dollars || 0,
+      data.quarters || 0,
+      data.dimes || 0,
+      data.nickels || 0,
+      data.pennies || 0,
+      data.ws_label_amount || 0,
+      data.variance || 0,
+      data.label_image || null,
+      data.notes || null,
+      data.submitted_at || new Date().toISOString().slice(0, 19).replace('T', ' ')
+    ]);
+    
+    return CashDrop.findById(result.insertId);
+  },
+
+  findById: async (id) => {
+    const [rows] = await pool.execute(`
+      SELECT cd.*, u.name as user_name
+      FROM cash_drops cd
+      JOIN users u ON cd.user_id = u.id
+      WHERE cd.id = ?
+    `, [id]);
+    
+    return rows[0] || null;
+  },
+
+  findByDateRange: async (dateFrom, dateTo, userId = null) => {
+    let query = `
+      SELECT cd.*, u.name as user_name, cd.submitted_at
+      FROM cash_drops cd
+      JOIN users u ON cd.user_id = u.id
+      WHERE cd.date >= ? AND cd.date <= ?
+    `;
+    
+    const params = [dateFrom, dateTo];
+    
+    if (userId) {
+      query += ' AND cd.user_id = ?';
+      params.push(userId);
+    }
+    
+    query += ' ORDER BY cd.date DESC';
+    
+    const [rows] = await pool.execute(query, params);
+    return rows;
+  },
+
+  update: async (id, data) => {
+    const fields = [];
+    const values = [];
+    
+    // Update denominations
+    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 
+                                'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies'];
+    
+    denominationFields.forEach(field => {
+      if (data[field] !== undefined) {
+        fields.push(`${field} = ?`);
+        values.push(data[field]);
+      }
+    });
+    
+    // Update other fields
+    if (data.drop_amount !== undefined) {
+      fields.push('drop_amount = ?');
+      values.push(data.drop_amount);
+    }
+    if (data.bank_dropped !== undefined) {
+      fields.push('bank_dropped = ?');
+      values.push(data.bank_dropped ? 1 : 0);
+    }
+    
+    if (fields.length === 0) return null;
+    
+    values.push(id);
+    await pool.execute(`UPDATE cash_drops SET ${fields.join(', ')} WHERE id = ?`, values);
+    return CashDrop.findById(id);
+  }
+};
