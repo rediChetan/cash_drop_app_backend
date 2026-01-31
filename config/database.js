@@ -148,6 +148,37 @@ const initDatabase = async () => {
       // Ignore errors
     }
 
+    // Add ignored column if it doesn't exist
+    try {
+      const [columns] = await connection.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = ? 
+        AND TABLE_NAME = 'cash_drops' 
+        AND COLUMN_NAME = 'ignored'
+      `, [dbConfig.database]);
+      
+      if (columns.length === 0) {
+        await connection.query(`
+          ALTER TABLE cash_drops ADD COLUMN ignored TINYINT(1) DEFAULT 0,
+          ADD COLUMN ignore_reason TEXT
+        `);
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+
+    // Admin Settings table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS admin_settings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        setting_key VARCHAR(255) UNIQUE NOT NULL,
+        setting_value TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Cash Drop Reconciler table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS cash_drop_reconcilers (

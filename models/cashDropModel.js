@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { getPSTDateTime } from '../utils/dateUtils.js';
 
 export const CashDrop = {
   create: async (data) => {
@@ -32,7 +33,7 @@ export const CashDrop = {
       data.variance || 0,
       data.label_image || null,
       data.notes || null,
-      data.submitted_at || new Date().toISOString().slice(0, 19).replace('T', ' ')
+      data.submitted_at || getPSTDateTime()
     ]);
     
     return CashDrop.findById(result.insertId);
@@ -46,7 +47,14 @@ export const CashDrop = {
       WHERE cd.id = ?
     `, [id]);
     
-    return rows[0] || null;
+    if (rows[0]) {
+      return {
+        ...rows[0],
+        ignored: rows[0].ignored === 1,
+        bank_dropped: rows[0].bank_dropped === 1
+      };
+    }
+    return null;
   },
 
   findByDateRange: async (dateFrom, dateTo, userId = null) => {
@@ -67,7 +75,11 @@ export const CashDrop = {
     query += ' ORDER BY cd.date DESC';
     
     const [rows] = await pool.execute(query, params);
-    return rows;
+    return rows.map(row => ({
+      ...row,
+      ignored: row.ignored === 1,
+      bank_dropped: row.bank_dropped === 1
+    }));
   },
 
   update: async (id, data) => {
@@ -94,11 +106,28 @@ export const CashDrop = {
       fields.push('bank_dropped = ?');
       values.push(data.bank_dropped ? 1 : 0);
     }
+    if (data.ignored !== undefined) {
+      fields.push('ignored = ?');
+      values.push(data.ignored ? 1 : 0);
+    }
+    if (data.ignore_reason !== undefined) {
+      fields.push('ignore_reason = ?');
+      values.push(data.ignore_reason);
+    }
     
     if (fields.length === 0) return null;
     
     values.push(id);
     await pool.execute(`UPDATE cash_drops SET ${fields.join(', ')} WHERE id = ?`, values);
     return CashDrop.findById(id);
+  },
+
+  countByUserAndDate: async (userId, date) => {
+    const [rows] = await pool.execute(`
+      SELECT COUNT(*) as count 
+      FROM cash_drops 
+      WHERE user_id = ? AND date = ? AND ignored = 0
+    `, [userId, date]);
+    return rows[0].count;
   }
 };

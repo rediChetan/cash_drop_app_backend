@@ -3,6 +3,7 @@ import { CashDropReconciler } from '../models/cashDropReconcilerModel.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { getPSTDateTime } from '../utils/dateUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,7 +45,7 @@ export const createCashDrop = async (req, res) => {
       variance: req.body.variance || 0,
       label_image: labelImagePath,
       notes: req.body.notes || null,
-      submitted_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+      submitted_at: getPSTDateTime()
     };
     
     const drop = await CashDrop.create(data);
@@ -101,6 +102,35 @@ export const getCashDrops = async (req, res) => {
     res.json(dropsWithImageUrl);
   } catch (error) {
     console.error('Get cash drops error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const ignoreCashDrop = async (req, res) => {
+  try {
+    const { id, ignore_reason } = req.body;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Cash drop ID is required' });
+    }
+    
+    if (!ignore_reason || ignore_reason.trim() === '') {
+      return res.status(400).json({ error: 'Ignore reason is required' });
+    }
+    
+    const drop = await CashDrop.findById(id);
+    if (!drop) {
+      return res.status(404).json({ error: 'Cash drop not found' });
+    }
+    
+    const updated = await CashDrop.update(id, {
+      ignored: true,
+      ignore_reason: ignore_reason.trim()
+    });
+    
+    res.json(updated);
+  } catch (error) {
+    console.error('Ignore cash drop error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

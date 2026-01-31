@@ -56,6 +56,8 @@ export const CashDropReconciler = {
         cd.label_image,
         cd.bank_dropped,
         cd.notes,
+        cd.ignored,
+        cd.ignore_reason,
         cd.hundreds, cd.fifties, cd.twenties, cd.tens, cd.fives, cd.twos, cd.ones,
         cd.half_dollars, cd.quarters, cd.dimes, cd.nickels, cd.pennies,
         COALESCE(cdr.admin_count_amount, cd.drop_amount) as reconciled_amount,
@@ -64,7 +66,7 @@ export const CashDropReconciler = {
       FROM cash_drop_reconcilers cdr
       JOIN cash_drops cd ON cdr.drop_entry_id = cd.id
       JOIN users u ON cd.user_id = u.id
-      WHERE cdr.date >= ? AND cdr.date <= ?
+      WHERE cdr.date >= ? AND cdr.date <= ? AND (cd.ignored IS NULL OR cd.ignored = 0)
     `;
     
     const params = [dateFrom, dateTo];
@@ -85,7 +87,8 @@ export const CashDropReconciler = {
     return rows.map(r => ({
       ...r,
       is_reconciled: r.is_reconciled === 1,
-      bank_dropped: r.bank_dropped === 1
+      bank_dropped: r.bank_dropped === 1,
+      ignored: r.ignored === 1
     }));
   },
 
