@@ -8,8 +8,8 @@ export const CashDrop = {
         user_id, drawer_entry_id, workstation, shift_number, date,
         drop_amount, hundreds, fifties, twenties, tens, fives, twos, ones,
         half_dollars, quarters, dimes, nickels, pennies,
-        ws_label_amount, variance, label_image, notes, submitted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ws_label_amount, variance, label_image, notes, status, submitted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       data.user_id,
       data.drawer_entry_id || null,
@@ -33,7 +33,8 @@ export const CashDrop = {
       data.variance || 0,
       data.label_image || null,
       data.notes || null,
-      data.submitted_at || getPSTDateTime()
+      data.status || 'submitted',
+      data.status === 'drafted' ? null : (data.submitted_at || getPSTDateTime())
     ]);
     
     return CashDrop.findById(result.insertId);
@@ -102,13 +103,32 @@ export const CashDrop = {
       fields.push('drop_amount = ?');
       values.push(data.drop_amount);
     }
+    if (data.status !== undefined) {
+      fields.push('status = ?');
+      values.push(data.status);
+      // If status is being set to submitted and submitted_at is null, set it
+      if (data.status === 'submitted') {
+        fields.push('submitted_at = COALESCE(submitted_at, ?)');
+        values.push(getPSTDateTime());
+      }
+    }
     if (data.bank_dropped !== undefined) {
       fields.push('bank_dropped = ?');
       values.push(data.bank_dropped ? 1 : 0);
+      // Update status to bank_dropped when bank_dropped is set to true
+      if (data.bank_dropped) {
+        fields.push('status = ?');
+        values.push('bank_dropped');
+      }
     }
     if (data.ignored !== undefined) {
       fields.push('ignored = ?');
       values.push(data.ignored ? 1 : 0);
+      // Update status to ignored when ignored is set to true
+      if (data.ignored) {
+        fields.push('status = ?');
+        values.push('ignored');
+      }
     }
     if (data.ignore_reason !== undefined) {
       fields.push('ignore_reason = ?');
@@ -129,5 +149,10 @@ export const CashDrop = {
       WHERE user_id = ? AND date = ? AND ignored = 0
     `, [userId, date]);
     return rows[0].count;
+  },
+
+  delete: async (id) => {
+    const [result] = await pool.execute(`DELETE FROM cash_drops WHERE id = ?`, [id]);
+    return result.affectedRows > 0;
   }
 };

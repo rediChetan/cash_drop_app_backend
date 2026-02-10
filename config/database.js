@@ -99,6 +99,7 @@ const initDatabase = async () => {
         label_image VARCHAR(500),
         bank_dropped TINYINT(1) DEFAULT 0,
         notes TEXT,
+        status ENUM('drafted', 'submitted', 'ignored','bank_dropped','reconciled') DEFAULT 'submitted',
         submitted_at DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

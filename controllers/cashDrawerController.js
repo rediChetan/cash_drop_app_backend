@@ -35,6 +35,64 @@ export const createCashDrawer = async (req, res) => {
   }
 };
 
+export const updateCashDrawer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = {};
+    
+    if (req.body.workstation !== undefined) updateData.workstation = req.body.workstation;
+    if (req.body.shift_number !== undefined) updateData.shift_number = req.body.shift_number;
+    if (req.body.date !== undefined) updateData.date = req.body.date;
+    if (req.body.starting_cash !== undefined) updateData.starting_cash = parseFloat(req.body.starting_cash);
+    if (req.body.total_cash !== undefined) updateData.total_cash = parseFloat(req.body.total_cash);
+    
+    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 
+                                'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies'];
+    denominationFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updateData[field] = parseInt(req.body[field]) || 0;
+      }
+    });
+    
+    const updated = await CashDrawer.update(parseInt(id), updateData);
+    res.json(updated);
+  } catch (error) {
+    console.error('Update cash drawer error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+export const deleteCashDrawer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Cash drawer ID is required' });
+    }
+    
+    const drawer = await CashDrawer.findById(parseInt(id));
+    if (!drawer) {
+      return res.status(404).json({ error: 'Cash drawer not found' });
+    }
+    
+    // Only allow users to delete their own drawers (unless admin)
+    if (!req.user.is_admin && drawer.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'You can only delete your own cash drawers' });
+    }
+    
+    const deleted = await CashDrawer.delete(parseInt(id));
+    
+    if (deleted) {
+      res.json({ message: 'Cash drawer deleted successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete cash drawer' });
+    }
+  } catch (error) {
+    console.error('Delete cash drawer error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const getCashDrawers = async (req, res) => {
   try {
     const { datefrom, dateto } = req.query;

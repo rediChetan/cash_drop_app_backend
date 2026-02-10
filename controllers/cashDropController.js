@@ -22,6 +22,7 @@ export const createCashDrop = async (req, res) => {
       labelImagePath = `/media/cash_drop_labels/${fileName}`;
     }
     
+    const status = req.body.status || 'submitted';
     const data = {
       user_id: req.user.id,
       drawer_entry_id: req.body.drawer_entry || req.body.drawer_entry_id || null,
@@ -45,13 +46,14 @@ export const createCashDrop = async (req, res) => {
       variance: req.body.variance || 0,
       label_image: labelImagePath,
       notes: req.body.notes || null,
-      submitted_at: getPSTDateTime()
+      status: status,
+      submitted_at: status === 'drafted' ? null : getPSTDateTime()
     };
     
     const drop = await CashDrop.create(data);
     
-    // Auto-create reconciler entry (equivalent to Django signal)
-    if (drop) {
+    // Auto-create reconciler entry only for submitted cash drops (not drafts)
+    if (drop && status === 'submitted') {
       try {
         await CashDropReconciler.create({
           user_id: drop.user_id,
@@ -106,6 +108,101 @@ export const getCashDrops = async (req, res) => {
   }
 };
 
+export const updateCashDrop = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = {};
+    
+    // Handle file upload if present
+    if (req.file) {
+      const fileExtension = path.extname(req.file.originalname);
+      const fileName = `cash_drop_${Date.now()}${fileExtension}`;
+      const uploadPath = path.join(__dirname, '..', 'media', 'cash_drop_labels', fileName);
+      fs.writeFileSync(uploadPath, req.file.buffer);
+      updateData.label_image = `/media/cash_drop_labels/${fileName}`;
+    }
+    
+    // Update denominations
+    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 
+                                'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies'];
+    denominationFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updateData[field] = parseInt(req.body[field]) || 0;
+      }
+    });
+    
+    // Update other fields
+    if (req.body.drop_amount !== undefined) updateData.drop_amount = parseFloat(req.body.drop_amount);
+    if (req.body.ws_label_amount !== undefined) updateData.ws_label_amount = parseFloat(req.body.ws_label_amount);
+    if (req.body.variance !== undefined) updateData.variance = parseFloat(req.body.variance);
+    if (req.body.notes !== undefined) updateData.notes = req.body.notes;
+    if (req.body.status !== undefined) {
+      updateData.status = req.body.status;
+      if (req.body.status === 'submitted') {
+        updateData.submitted_at = getPSTDateTime();
+      }
+    }
+    
+    const updated = await CashDrop.update(parseInt(id), updateData);
+    
+    // Auto-create reconciler entry if status changed to submitted
+    if (req.body.status === 'submitted' && updated) {
+      try {
+        await CashDropReconciler.create({
+          user_id: updated.user_id,
+          drop_entry_id: updated.id,
+          workstation: updated.workstation,
+          shift_number: updated.shift_number,
+          date: updated.date
+        });
+      } catch (reconcilerError) {
+        console.error('Error creating reconciler entry:', reconcilerError);
+      }
+    }
+    
+    res.json(updated);
+  } catch (error) {
+    console.error('Update cash drop error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+};
+
+export const deleteCashDrop = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Cash drop ID is required' });
+    }
+    
+    const drop = await CashDrop.findById(parseInt(id));
+    if (!drop) {
+      return res.status(404).json({ error: 'Cash drop not found' });
+    }
+    
+    // Only allow deletion of drafts
+    if (drop.status !== 'drafted') {
+      return res.status(400).json({ error: 'Only drafts can be deleted' });
+    }
+    
+    // Only allow users to delete their own drafts (unless admin)
+    if (!req.user.is_admin && drop.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'You can only delete your own drafts' });
+    }
+    
+    const deleted = await CashDrop.delete(parseInt(id));
+    
+    if (deleted) {
+      res.json({ message: 'Draft deleted successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete draft' });
+    }
+  } catch (error) {
+    console.error('Delete cash drop error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const ignoreCashDrop = async (req, res) => {
   try {
     const { id, ignore_reason } = req.body;
@@ -125,7 +222,8 @@ export const ignoreCashDrop = async (req, res) => {
     
     const updated = await CashDrop.update(id, {
       ignored: true,
-      ignore_reason: ignore_reason.trim()
+      ignore_reason: ignore_reason.trim(),
+      status: 'ignored'
     });
     
     res.json(updated);

@@ -93,6 +93,17 @@ export const updateCashDropReconciler = async (req, res) => {
     
     const updated = await CashDropReconciler.update(id, updateData);
     
+    // Update cash drop status to 'reconciled' when reconciling
+    if (is_reconciled === true && updated) {
+      try {
+        await CashDrop.update(updated.drop_entry_id, {
+          status: 'reconciled'
+        });
+      } catch (error) {
+        console.error('Error updating cash drop status to reconciled:', error);
+      }
+    }
+    
     // Add image URL if present
     if (updated && updated.label_image) {
       const baseUrl = req.protocol + '://' + req.get('host');
