@@ -6,8 +6,10 @@ export const CashDrawer = {
       INSERT INTO cash_drawers (
         user_id, workstation, shift_number, date, starting_cash,
         hundreds, fifties, twenties, tens, fives, twos, ones,
-        half_dollars, quarters, dimes, nickels, pennies, total_cash
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        half_dollars, quarters, dimes, nickels, pennies,
+        quarter_rolls, dime_rolls, nickel_rolls, penny_rolls,
+        total_cash, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       data.user_id,
       data.workstation,
@@ -26,7 +28,12 @@ export const CashDrawer = {
       data.dimes || 0,
       data.nickels || 0,
       data.pennies || 0,
-      data.total_cash
+      data.quarter_rolls || 0,
+      data.dime_rolls || 0,
+      data.nickel_rolls || 0,
+      data.penny_rolls || 0,
+      data.total_cash,
+      data.status || 'submitted'
     ]);
     
     return CashDrawer.findById(result.insertId);
@@ -94,13 +101,19 @@ export const CashDrawer = {
     }
     
     const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 
-                                'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies'];
+                                'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies',
+                                'quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls'];
     denominationFields.forEach(field => {
       if (data[field] !== undefined) {
         fields.push(`${field} = ?`);
         values.push(data[field]);
       }
     });
+    
+    if (data.status !== undefined) {
+      fields.push('status = ?');
+      values.push(data.status);
+    }
     
     if (fields.length === 0) return null;
     

@@ -134,6 +134,22 @@ export const CashDrop = {
       fields.push('ignore_reason = ?');
       values.push(data.ignore_reason);
     }
+    if (data.label_image !== undefined) {
+      fields.push('label_image = ?');
+      values.push(data.label_image);
+    }
+    if (data.ws_label_amount !== undefined) {
+      fields.push('ws_label_amount = ?');
+      values.push(data.ws_label_amount);
+    }
+    if (data.variance !== undefined) {
+      fields.push('variance = ?');
+      values.push(data.variance);
+    }
+    if (data.notes !== undefined) {
+      fields.push('notes = ?');
+      values.push(data.notes);
+    }
     
     if (fields.length === 0) return null;
     

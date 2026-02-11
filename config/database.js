@@ -65,10 +65,14 @@ const initDatabase = async () => {
         dimes INT DEFAULT 0,
         nickels INT DEFAULT 0,
         pennies INT DEFAULT 0,
+        quarter_rolls INT DEFAULT 0,
+        dime_rolls INT DEFAULT 0,
+        nickel_rolls INT DEFAULT 0,
+        penny_rolls INT DEFAULT 0,
         total_cash DECIMAL(10, 2) NOT NULL,
+        status ENUM('drafted', 'submitted', 'ignored') DEFAULT 'submitted',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_drawer (workstation, shift_number, date)
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
 
@@ -169,6 +173,53 @@ const initDatabase = async () => {
       // Ignore errors
     }
 
+    // Add status column to cash_drawers if it doesn't exist
+    try {
+      const [columns] = await connection.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = ? 
+        AND TABLE_NAME = 'cash_drawers' 
+        AND COLUMN_NAME = 'status'
+      `, [dbConfig.database]);
+      
+      if (columns.length === 0) {
+        await connection.query(`
+          ALTER TABLE cash_drawers ADD COLUMN status ENUM('drafted', 'submitted', 'ignored') DEFAULT 'submitted'
+        `);
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+
+    // Add roll columns to cash_drawers if they don't exist
+    try {
+      const [columns] = await connection.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = ? 
+        AND TABLE_NAME = 'cash_drawers' 
+        AND COLUMN_NAME IN ('quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls')
+      `, [dbConfig.database]);
+      
+      const existingColumns = columns.map(c => c.COLUMN_NAME);
+      
+      if (!existingColumns.includes('quarter_rolls')) {
+        await connection.query(`ALTER TABLE cash_drawers ADD COLUMN quarter_rolls INT DEFAULT 0`);
+      }
+      if (!existingColumns.includes('dime_rolls')) {
+        await connection.query(`ALTER TABLE cash_drawers ADD COLUMN dime_rolls INT DEFAULT 0`);
+      }
+      if (!existingColumns.includes('nickel_rolls')) {
+        await connection.query(`ALTER TABLE cash_drawers ADD COLUMN nickel_rolls INT DEFAULT 0`);
+      }
+      if (!existingColumns.includes('penny_rolls')) {
+        await connection.query(`ALTER TABLE cash_drawers ADD COLUMN penny_rolls INT DEFAULT 0`);
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+
     // Admin Settings table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS admin_settings (
@@ -254,7 +305,6 @@ const initDatabase = async () => {
 initDatabase().catch((error) => {
   console.error('Database initialization error:', error);
   console.error('Please ensure MySQL is running and the database exists.');
-  console.error('You can create the database with: CREATE DATABASE cash_drop_db;');
   // Don't exit - let the server start and show the error
 });
 

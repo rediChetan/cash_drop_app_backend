@@ -108,6 +108,38 @@ export const getCashDrops = async (req, res) => {
   }
 };
 
+export const getCashDropById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Cash drop ID is required' });
+    }
+    
+    const drop = await CashDrop.findById(parseInt(id));
+    
+    if (!drop) {
+      return res.status(404).json({ error: 'Cash drop not found' });
+    }
+    
+    // Check if user has access (admin can access all, regular users can only access their own)
+    if (!req.user.is_admin && drop.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    // Add full URL for label image if present
+    if (drop.label_image) {
+      const baseUrl = req.protocol + '://' + req.get('host');
+      drop.label_image_url = `${baseUrl}${drop.label_image}`;
+    }
+    
+    res.json(drop);
+  } catch (error) {
+    console.error('Get cash drop by id error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const updateCashDrop = async (req, res) => {
   try {
     const { id } = req.params;
@@ -118,8 +150,29 @@ export const updateCashDrop = async (req, res) => {
       const fileExtension = path.extname(req.file.originalname);
       const fileName = `cash_drop_${Date.now()}${fileExtension}`;
       const uploadPath = path.join(__dirname, '..', 'media', 'cash_drop_labels', fileName);
+      
+      // Ensure directory exists
+      const uploadDir = path.dirname(uploadPath);
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      
       fs.writeFileSync(uploadPath, req.file.buffer);
       updateData.label_image = `/media/cash_drop_labels/${fileName}`;
+      
+      // Delete old image if it exists
+      const existingDrop = await CashDrop.findById(parseInt(id));
+      if (existingDrop && existingDrop.label_image) {
+        const oldImagePath = path.join(__dirname, '..', existingDrop.label_image);
+        try {
+          if (fs.existsSync(oldImagePath)) {
+            fs.unlinkSync(oldImagePath);
+          }
+        } catch (deleteError) {
+          console.warn('Error deleting old image:', deleteError);
+          // Don't fail the update if old image deletion fails
+        }
+      }
     }
     
     // Update denominations
