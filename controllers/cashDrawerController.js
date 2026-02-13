@@ -34,12 +34,35 @@ export const createCashDrawer = async (req, res) => {
     if (!data.workstation || !data.shift_number || !data.date || !data.starting_cash || data.total_cash === undefined) {
       return res.status(400).json({ error: 'Missing required fields: workstation, shift_number, date, starting_cash, and total_cash are required' });
     }
+
+    // Check for existing drawer (same workstation, shift, date) to return user-specific message
+    const existing = await CashDrawer.findByWorkstationShiftDate(data.workstation, data.shift_number, data.date);
+    if (existing) {
+      const userName = existing.user_name || 'another user';
+      return res.status(400).json({
+        error: `Cash drawer already exists, submitted by ${userName} for shift, workstation and date.`
+      });
+    }
     
     const drawer = await CashDrawer.create(data);
     res.status(201).json(drawer);
   } catch (error) {
     if (error.message && error.message.includes('UNIQUE') || error.code === 'ER_DUP_ENTRY') {
-      return res.status(400).json({ error: 'Cash drawer entry already exists for this workstation, shift, and date' });
+      try {
+        const existing = await CashDrawer.findByWorkstationShiftDate(
+          req.body.workstation || req.body.workStation,
+          req.body.shift_number || req.body.shiftNumber,
+          req.body.date
+        );
+        const userName = existing?.user_name || 'another user';
+        return res.status(400).json({
+          error: `Cash drawer already exists, submitted by ${userName} for shift, workstation and date.`
+        });
+      } catch (e) {
+        return res.status(400).json({
+          error: 'Cash drawer already exists, submitted by another user for shift, workstation and date.'
+        });
+      }
     }
     console.error('Create cash drawer error:', error);
     console.error('Error details:', error.message, error.stack);

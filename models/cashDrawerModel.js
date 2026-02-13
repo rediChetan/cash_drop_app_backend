@@ -39,6 +39,16 @@ export const CashDrawer = {
     return CashDrawer.findById(result.insertId);
   },
 
+  findByWorkstationShiftDate: async (workstation, shiftNumber, date) => {
+    const [rows] = await pool.execute(`
+      SELECT cd.*, u.name as user_name
+      FROM cash_drawers cd
+      JOIN users u ON cd.user_id = u.id
+      WHERE cd.workstation = ? AND cd.shift_number = ? AND cd.date = ? LIMIT 1
+    `, [workstation, shiftNumber, date]);
+    return rows[0] || null;
+  },
+
   findById: async (id) => {
     const [rows] = await pool.execute(`
       SELECT cd.*, u.name as user_name
