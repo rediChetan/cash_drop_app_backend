@@ -4,7 +4,7 @@ import { CashDrawer } from '../models/cashDrawerModel.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { getPSTDateTime } from '../utils/dateUtils.js';
+import { getPSTDateTime, isAllowedCashDropDate } from '../utils/dateUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +27,10 @@ export const createCashDrop = async (req, res) => {
     const workstation = req.body.workstation;
     const shift_number = req.body.shift_number;
     const date = req.body.date;
+
+    if (status === 'submitted' && date && !isAllowedCashDropDate(date)) {
+      return res.status(400).json({ error: 'Cash drop can only be submitted for the current day or the previous day (PST).' });
+    }
 
     // Block duplicate: one drop per (workstation, shift_number, date)
     if (workstation != null && shift_number != null && date && status === 'submitted') {
@@ -208,6 +212,14 @@ export const updateCashDrop = async (req, res) => {
     const currentDrop = await CashDrop.findById(dropId);
     if (!currentDrop) {
       return res.status(404).json({ error: 'Cash drop not found' });
+    }
+
+    // When submitting: only allow current or previous day (PST)
+    if (req.body.status === 'submitted') {
+      const dropDate = req.body.date || currentDrop.date;
+      if (dropDate && !isAllowedCashDropDate(dropDate)) {
+        return res.status(400).json({ error: 'Cash drop can only be submitted for the current day or the previous day (PST).' });
+      }
     }
 
     // When submitting a draft: block if another drop already exists for same workstation/shift/date

@@ -79,7 +79,32 @@ export const updateCashDropReconciler = async (req, res) => {
     
     // Calculate reconcile delta (difference between counted and system drop)
     const reconcileDelta = adminCounted - systemDrop;
-    
+    const hasDelta = Math.abs(reconcileDelta) > 0.01;
+
+    // When there is a delta, require custom denominations (so CD dashboard and bank drop use counted breakdown)
+    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies'];
+    const denominationValues = { hundreds: 100, fifties: 50, twenties: 20, tens: 10, fives: 5, twos: 2, ones: 1, half_dollars: 0.5, quarters: 0.25, dimes: 0.1, nickels: 0.05, pennies: 0.01 };
+    let customDenoms = null;
+    if (hasDelta) {
+      const provided = {};
+      let anyProvided = false;
+      for (const f of denominationFields) {
+        if (req.body[f] !== undefined && req.body[f] !== null) {
+          provided[f] = parseFloat(req.body[f]) || 0;
+          anyProvided = true;
+        }
+      }
+      if (anyProvided) {
+        const sum = Object.keys(provided).reduce((s, f) => s + (provided[f] || 0) * (denominationValues[f] || 0), 0);
+        if (Math.abs(sum - adminCounted) > 0.02) {
+          return res.status(400).json({ error: `Custom denominations total ($${sum.toFixed(2)}) must equal counted amount ($${adminCounted.toFixed(2)}).` });
+        }
+        customDenoms = { ...provided };
+      } else {
+        return res.status(400).json({ error: 'When counted amount differs from drop amount, you must provide custom denominations that match what you counted.' });
+      }
+    }
+
     // Update the reconciler with notes if provided
     const updateData = {
       admin_count_amount: adminCounted,
@@ -93,14 +118,17 @@ export const updateCashDropReconciler = async (req, res) => {
     
     const updated = await CashDropReconciler.update(id, updateData);
     
-    // Update cash drop status to 'reconciled' when reconciling
+    // Update cash drop: status to 'reconciled', and when there's a delta use custom denominations and drop_amount = counted
     if (is_reconciled === true && updated) {
       try {
-        await CashDrop.update(updated.drop_entry_id, {
-          status: 'reconciled'
-        });
+        const dropUpdate = { status: 'reconciled' };
+        if (customDenoms) {
+          Object.assign(dropUpdate, customDenoms);
+          dropUpdate.drop_amount = adminCounted;
+        }
+        await CashDrop.update(updated.drop_entry_id, dropUpdate);
       } catch (error) {
-        console.error('Error updating cash drop status to reconciled:', error);
+        console.error('Error updating cash drop status/denominations:', error);
       }
     }
     

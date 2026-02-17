@@ -71,6 +71,7 @@ export const getCurrentUser = async (req, res) => {
     }
     
     res.json({
+      id: user.id,
       name: user.name,
       email: user.email,
       is_admin: user.is_admin === 1
