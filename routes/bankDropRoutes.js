@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getBankDropData,
+  getBankDropDataByBatches,
   getBatchHistory,
   getCashDropById,
   updateCashDropDenominations,
@@ -14,6 +15,7 @@ const router = express.Router();
 router.use(authenticateToken);
 
 router.get('/', getBankDropData);
+router.post('/by-batches', getBankDropDataByBatches);
 router.get('/history', getBatchHistory);
 router.get('/cash-drop/:id', getCashDropById);
 router.put('/cash-drop/:id/denominations', updateCashDropDenominations);

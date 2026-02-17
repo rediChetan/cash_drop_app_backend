@@ -13,6 +13,36 @@ export const getBatchHistory = async (req, res) => {
   }
 };
 
+// Get bank drop list items by batch number(s) (for viewing selected batches in the list)
+export const getBankDropDataByBatches = async (req, res) => {
+  try {
+    const { batch_numbers } = req.body;
+    if (!batch_numbers || !Array.isArray(batch_numbers) || batch_numbers.length === 0) {
+      return res.status(400).json({ error: 'batch_numbers array is required' });
+    }
+    const userId = req.user.is_admin ? null : req.user.id;
+    const reconcilers = await CashDropReconciler.findByBatchNumbers(batch_numbers, userId);
+    const withImageUrl = reconcilers.map(reconciler => {
+      const result = { ...reconciler };
+      if (reconciler.label_image) {
+        const baseUrl = req.protocol + '://' + req.get('host');
+        result.label_image_url = `${baseUrl}${reconciler.label_image}`;
+      } else {
+        result.label_image_url = null;
+      }
+      result.drop_entry_id = reconciler.drop_entry_id;
+      result.reconciled_amount = reconciler.admin_count_amount || reconciler.system_drop_amount;
+      result.bank_drop_batch_number = reconciler.bank_drop_batch_number ?? null;
+      result.bank_dropped = !!reconciler.bank_dropped;
+      return result;
+    });
+    res.json(withImageUrl);
+  } catch (error) {
+    console.error('Get bank drop data by batches error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Get reconciled cash drops for bank drop (only reconciled ones)
 export const getBankDropData = async (req, res) => {
   try {
