@@ -239,6 +239,10 @@ export const updateCashDrop = async (req, res) => {
 
     const updateData = {};
     
+    if (req.body.date !== undefined) updateData.date = req.body.date;
+    if (req.body.workstation !== undefined) updateData.workstation = req.body.workstation;
+    if (req.body.shift_number !== undefined) updateData.shift_number = req.body.shift_number;
+    
     // Handle file upload if present
     if (req.file) {
       const fileExtension = path.extname(req.file.originalname);

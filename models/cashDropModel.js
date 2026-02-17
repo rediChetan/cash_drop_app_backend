@@ -200,6 +200,18 @@ export const CashDrop = {
       fields.push('notes = ?');
       values.push(data.notes);
     }
+    if (data.date !== undefined) {
+      fields.push('date = ?');
+      values.push(data.date);
+    }
+    if (data.workstation !== undefined) {
+      fields.push('workstation = ?');
+      values.push(data.workstation);
+    }
+    if (data.shift_number !== undefined) {
+      fields.push('shift_number = ?');
+      values.push(data.shift_number);
+    }
     
     if (fields.length === 0) return null;
     
