@@ -1,5 +1,6 @@
 import { CashDrawer } from '../models/cashDrawerModel.js';
 import { CashDrop } from '../models/cashDropModel.js';
+import { User } from '../models/authModel.js';
 
 export const createCashDrawer = async (req, res) => {
   try {
@@ -198,8 +199,12 @@ export const getCashDrawers = async (req, res) => {
       return res.status(400).json({ error: 'Both datefrom and dateto are required' });
     }
     
-    const userId = req.user.is_admin ? null : req.user.id;
-    const drawers = await CashDrawer.findByDateRange(datefrom, dateto, userId);
+    const from = String(datefrom).slice(0, 10);
+    const to = String(dateto).slice(0, 10);
+    const currentUser = await User.findById(req.user.id);
+    const isAdmin = currentUser && currentUser.is_admin === 1;
+    const userId = isAdmin ? null : req.user.id;
+    const drawers = await CashDrawer.findByDateRange(from, to, userId);
     
     res.json(drawers);
   } catch (error) {

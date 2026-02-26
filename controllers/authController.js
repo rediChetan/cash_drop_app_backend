@@ -139,7 +139,7 @@ export const createUser = async (req, res) => {
       otpAuthUrl = generateURI({
         secret,
         label: email,
-        issuer: 'TOTP App'
+        issuer: 'MFY CashDrop'
       });
       console.log('URI generated successfully');
     } catch (uriError) {

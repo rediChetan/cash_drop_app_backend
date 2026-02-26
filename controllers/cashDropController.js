@@ -1,6 +1,7 @@
 import { CashDrop } from '../models/cashDropModel.js';
 import { CashDropReconciler } from '../models/cashDropReconcilerModel.js';
 import { CashDrawer } from '../models/cashDrawerModel.js';
+import { User } from '../models/authModel.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -151,8 +152,12 @@ export const getCashDrops = async (req, res) => {
       return res.status(400).json({ error: 'Both datefrom and dateto are required' });
     }
     
-    const userId = req.user.is_admin ? null : req.user.id;
-    const drops = await CashDrop.findByDateRange(datefrom, dateto, userId);
+    const from = String(datefrom).slice(0, 10);
+    const to = String(dateto).slice(0, 10);
+    const currentUser = await User.findById(req.user.id);
+    const isAdmin = currentUser && currentUser.is_admin === 1;
+    const userId = isAdmin ? null : req.user.id;
+    const drops = await CashDrop.findByDateRange(from, to, userId);
     
     // Add full URL for label images
     const dropsWithImageUrl = drops.map(drop => {

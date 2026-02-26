@@ -60,9 +60,9 @@ export const CashDrop = {
 
   findByDateRange: async (dateFrom, dateTo, userId = null) => {
     let query = `
-      SELECT cd.*, u.name as user_name, cd.submitted_at
+      SELECT cd.*, COALESCE(u.name, 'Unknown') as user_name, cd.submitted_at
       FROM cash_drops cd
-      JOIN users u ON cd.user_id = u.id
+      LEFT JOIN users u ON cd.user_id = u.id
       WHERE cd.date >= ? AND cd.date <= ?
     `;
     

@@ -49,7 +49,7 @@ export const CashDropReconciler = {
         cdr.*,
         cdr.drop_entry_id,
         cdr.notes as reconciliation_notes,
-        u.name as user_name,
+        COALESCE(u.name, 'Unknown') as user_name,
         cd.drop_amount as system_drop_amount,
         cd.ws_label_amount,
         cd.variance,
@@ -66,7 +66,7 @@ export const CashDropReconciler = {
         cd.submitted_at
       FROM cash_drop_reconcilers cdr
       JOIN cash_drops cd ON cdr.drop_entry_id = cd.id
-      JOIN users u ON cd.user_id = u.id
+      LEFT JOIN users u ON cd.user_id = u.id
       WHERE cdr.date >= ? AND cdr.date <= ?
         AND (cd.ignored IS NULL OR cd.ignored = 0)
         AND cd.status NOT IN ('drafted', 'ignored')
@@ -105,7 +105,7 @@ export const CashDropReconciler = {
         cdr.*,
         cdr.drop_entry_id,
         cdr.notes as reconciliation_notes,
-        u.name as user_name,
+        COALESCE(u.name, 'Unknown') as user_name,
         cd.drop_amount as system_drop_amount,
         cd.ws_label_amount,
         cd.variance,
@@ -122,7 +122,7 @@ export const CashDropReconciler = {
         cd.submitted_at
       FROM cash_drop_reconcilers cdr
       JOIN cash_drops cd ON cdr.drop_entry_id = cd.id
-      JOIN users u ON cd.user_id = u.id
+      LEFT JOIN users u ON cd.user_id = u.id
       WHERE cd.bank_drop_batch_number IN (${placeholders})
         AND cdr.is_reconciled = 1
         AND (cd.ignored IS NULL OR cd.ignored = 0)

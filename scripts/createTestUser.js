@@ -33,7 +33,7 @@ const totp = new TOTP();
 const otpAuthUrl = totp.toURI({
   secret,
   label: email,
-  issuer: 'TOTP App'
+  issuer: 'MFY CashDrop'
 });
 
 // Generate QR code as data URL
