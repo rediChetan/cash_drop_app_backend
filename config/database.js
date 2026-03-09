@@ -334,6 +334,16 @@ const initDatabase = async () => {
       // Ignore errors
     }
 
+    // Index for date-range queries (Validation / reconciler list)
+    try {
+      await connection.query(`CREATE INDEX idx_reconcilers_date ON cash_drop_reconcilers (date)`);
+    } catch (e) {
+      // Ignore duplicate index; other errors are logged but do not block startup
+      if (e.code !== 'ER_DUP_KEYNAME' && e.errno !== 1061) {
+        console.warn('Could not create index idx_reconcilers_date:', e.message);
+      }
+    }
+
     // Create media directory if it doesn't exist
     const mediaDir = path.join(__dirname, '..', 'media', 'cash_drop_labels');
     if (!fs.existsSync(mediaDir)) {

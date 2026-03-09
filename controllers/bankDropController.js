@@ -1,6 +1,7 @@
 import { CashDrop } from '../models/cashDropModel.js';
 import { CashDropReconciler } from '../models/cashDropReconcilerModel.js';
 import { BankDrop } from '../models/bankDropModel.js';
+import { getDriveImageProxyUrl } from '../services/googleDriveService.js';
 
 // Get all dropped batches (for History section)
 export const getBatchHistory = async (req, res) => {
@@ -26,7 +27,7 @@ export const getBankDropDataByBatches = async (req, res) => {
       const result = { ...reconciler };
       if (reconciler.label_image) {
         const baseUrl = req.protocol + '://' + req.get('host');
-        result.label_image_url = `${baseUrl}${reconciler.label_image}`;
+        result.label_image_url = reconciler.label_image.startsWith('http') ? (getDriveImageProxyUrl(baseUrl, reconciler.label_image) || reconciler.label_image) : `${baseUrl}${reconciler.label_image}`;
       } else {
         result.label_image_url = null;
       }
@@ -62,7 +63,7 @@ export const getBankDropData = async (req, res) => {
       
       if (reconciler.label_image) {
         const baseUrl = req.protocol + '://' + req.get('host');
-        result.label_image_url = `${baseUrl}${reconciler.label_image}`;
+        result.label_image_url = reconciler.label_image.startsWith('http') ? (getDriveImageProxyUrl(baseUrl, reconciler.label_image) || reconciler.label_image) : `${baseUrl}${reconciler.label_image}`;
       } else {
         result.label_image_url = null;
       }
@@ -91,10 +92,10 @@ export const getCashDropById = async (req, res) => {
       return res.status(404).json({ error: 'Cash drop not found' });
     }
     
-    // Add image URL if present
+    // Add image URL if present (Drive URL as-is or local with baseUrl)
     if (drop.label_image) {
       const baseUrl = req.protocol + '://' + req.get('host');
-      drop.label_image_url = `${baseUrl}${drop.label_image}`;
+      drop.label_image_url = drop.label_image.startsWith('http') ? (getDriveImageProxyUrl(baseUrl, drop.label_image) || drop.label_image) : `${baseUrl}${drop.label_image}`;
     }
     
     res.json(drop);
@@ -146,10 +147,10 @@ export const updateCashDropDenominations = async (req, res) => {
       return res.status(400).json({ error: 'Failed to update cash drop' });
     }
     
-    // Add image URL if present
+    // Add image URL if present (Drive URL as-is or local with baseUrl)
     if (updated.label_image) {
       const baseUrl = req.protocol + '://' + req.get('host');
-      updated.label_image_url = `${baseUrl}${updated.label_image}`;
+      updated.label_image_url = updated.label_image.startsWith('http') ? (getDriveImageProxyUrl(baseUrl, updated.label_image) || updated.label_image) : `${baseUrl}${updated.label_image}`;
     }
     
     res.json(updated);

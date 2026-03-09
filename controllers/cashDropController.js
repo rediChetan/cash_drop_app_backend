@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { getPSTDateTime, isAllowedCashDropDate } from '../utils/dateUtils.js';
+import { uploadImageToDrive, isDriveEnabled, getDriveImageProxyUrl } from '../services/googleDriveService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,21 +14,37 @@ const __dirname = path.dirname(__filename);
 export const createCashDrop = async (req, res) => {
   try {
     let labelImagePath = null;
-    
-    // Handle file upload if present
-    if (req.file) {
-      const fileExtension = path.extname(req.file.originalname);
-      const fileName = `cash_drop_${Date.now()}${fileExtension}`;
-      const uploadPath = path.join(__dirname, '..', 'media', 'cash_drop_labels', fileName);
-      
-      fs.writeFileSync(uploadPath, req.file.buffer);
-      labelImagePath = `/media/cash_drop_labels/${fileName}`;
-    }
-    
-    const status = req.body.status || 'submitted';
+    const date = req.body.date;
     const workstation = req.body.workstation;
     const shift_number = req.body.shift_number;
-    const date = req.body.date;
+    const status = req.body.status || 'submitted';
+
+    // Handle file upload if present (Google Drive year/month/day or local fallback)
+    if (req.file) {
+      if (isDriveEnabled() && date) {
+        const driveUrl = await uploadImageToDrive(
+          req.file.buffer,
+          date,
+          workstation,
+          shift_number,
+          req.file.originalname
+        );
+        if (driveUrl) {
+          labelImagePath = driveUrl;
+        } else {
+          console.warn('Cash drop create: Google Drive upload failed or returned null; saving image locally. Check server logs for Drive errors.');
+        }
+      } else if (req.file && isDriveEnabled() && !date) {
+        console.warn('Cash drop create: date missing in request body; cannot upload to Drive (need YYYY-MM-DD). Saving image locally.');
+      }
+      if (!labelImagePath) {
+        const fileExtension = path.extname(req.file.originalname);
+        const fileName = `cash_drop_${Date.now()}${fileExtension}`;
+        const uploadPath = path.join(__dirname, '..', 'media', 'cash_drop_labels', fileName);
+        fs.writeFileSync(uploadPath, req.file.buffer);
+        labelImagePath = `/media/cash_drop_labels/${fileName}`;
+      }
+    }
 
     if (status === 'submitted' && date && !isAllowedCashDropDate(date)) {
       return res.status(400).json({ error: 'Cash drop can only be submitted for the current day or the previous day (PST).' });
@@ -159,13 +176,13 @@ export const getCashDrops = async (req, res) => {
     const userId = isAdmin ? null : req.user.id;
     const drops = await CashDrop.findByDateRange(from, to, userId);
     
-    // Add full URL for label images
+    // Add full URL for label images (local path or Drive URL as-is)
+    const baseUrl = req.protocol + '://' + req.get('host');
     const dropsWithImageUrl = drops.map(drop => {
       if (drop.label_image) {
-        const baseUrl = req.protocol + '://' + req.get('host');
         return {
           ...drop,
-          label_image_url: `${baseUrl}${drop.label_image}`
+          label_image_url: drop.label_image.startsWith('http') ? (getDriveImageProxyUrl(baseUrl, drop.label_image) || drop.label_image) : `${baseUrl}${drop.label_image}`
         };
       }
       return drop;
@@ -200,7 +217,7 @@ export const getCashDropById = async (req, res) => {
     // Add full URL for label image if present
     if (drop.label_image) {
       const baseUrl = req.protocol + '://' + req.get('host');
-      drop.label_image_url = `${baseUrl}${drop.label_image}`;
+      drop.label_image_url = drop.label_image.startsWith('http') ? (getDriveImageProxyUrl(baseUrl, drop.label_image) || drop.label_image) : `${baseUrl}${drop.label_image}`;
     }
     
     res.json(drop);
@@ -248,24 +265,43 @@ export const updateCashDrop = async (req, res) => {
     if (req.body.workstation !== undefined) updateData.workstation = req.body.workstation;
     if (req.body.shift_number !== undefined) updateData.shift_number = req.body.shift_number;
     
-    // Handle file upload if present
+    // Handle file upload if present (Google Drive year/month/day or local fallback)
     if (req.file) {
-      const fileExtension = path.extname(req.file.originalname);
-      const fileName = `cash_drop_${Date.now()}${fileExtension}`;
-      const uploadPath = path.join(__dirname, '..', 'media', 'cash_drop_labels', fileName);
-      
-      // Ensure directory exists
-      const uploadDir = path.dirname(uploadPath);
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-      
-      fs.writeFileSync(uploadPath, req.file.buffer);
-      updateData.label_image = `/media/cash_drop_labels/${fileName}`;
-      
-      // Delete old image if it exists
       const existingDrop = await CashDrop.findById(parseInt(id));
-      if (existingDrop && existingDrop.label_image) {
+      const dateStr = req.body.date ?? existingDrop?.date;
+      const workstation = req.body.workstation ?? existingDrop?.workstation;
+      const shift_number = req.body.shift_number ?? existingDrop?.shift_number;
+
+      if (isDriveEnabled() && dateStr) {
+        const driveUrl = await uploadImageToDrive(
+          req.file.buffer,
+          dateStr,
+          workstation,
+          shift_number,
+          req.file.originalname
+        );
+        if (driveUrl) {
+          updateData.label_image = driveUrl;
+        } else {
+          console.warn('Cash drop update: Google Drive upload failed or returned null; saving image locally. Check server logs for Drive errors.');
+        }
+      } else if (isDriveEnabled() && !dateStr) {
+        console.warn('Cash drop update: date missing; cannot upload to Drive. Saving image locally.');
+      }
+      if (updateData.label_image === undefined) {
+        const fileExtension = path.extname(req.file.originalname);
+        const fileName = `cash_drop_${Date.now()}${fileExtension}`;
+        const uploadPath = path.join(__dirname, '..', 'media', 'cash_drop_labels', fileName);
+        const uploadDir = path.dirname(uploadPath);
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        fs.writeFileSync(uploadPath, req.file.buffer);
+        updateData.label_image = `/media/cash_drop_labels/${fileName}`;
+      }
+
+      // Delete old local image if it existed (ignore Drive URLs)
+      if (existingDrop && existingDrop.label_image && !existingDrop.label_image.startsWith('http')) {
         const oldImagePath = path.join(__dirname, '..', existingDrop.label_image);
         try {
           if (fs.existsSync(oldImagePath)) {
@@ -273,7 +309,6 @@ export const updateCashDrop = async (req, res) => {
           }
         } catch (deleteError) {
           console.warn('Error deleting old image:', deleteError);
-          // Don't fail the update if old image deletion fails
         }
       }
     }

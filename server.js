@@ -11,8 +11,16 @@ import cashDropRoutes from "./routes/cashDropRoutes.js";
 import cashDropReconcilerRoutes from "./routes/cashDropReconcilerRoutes.js";
 import bankDropRoutes from "./routes/bankDropRoutes.js";
 import adminSettingsRoutes from "./routes/adminSettingsRoutes.js";
+import driveImageRoutes from "./routes/driveImageRoutes.js";
 
 dotenv.config();
+
+// Log Drive status without loading googleapis until first use
+if (process.env.GOOGLE_DRIVE_ENABLED) {
+  const enabled = String(process.env.GOOGLE_DRIVE_ENABLED).toLowerCase() === 'true';
+  const hasCreds = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN);
+  console.log('Google Drive:', enabled && hasCreds ? 'enabled (uploads will use Drive)' : 'config incomplete (set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN)');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,6 +53,11 @@ app.use(express.urlencoded({ extended: true }));
 // Serve media files
 app.use('/media', express.static(path.join(__dirname, 'media')));
 
+// Quick liveness check (no DB) - use this to confirm server is listening
+app.get('/ping', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'pong' });
+});
+
 // API routes - matching Django URL structure
 app.use("/api/auth", authRoutes);
 app.use("/api/cash-drop-app1/cash-drawer", cashDrawerRoutes);
@@ -52,6 +65,7 @@ app.use("/api/cash-drop-app1/cash-drop", cashDropRoutes);
 app.use("/api/cash-drop-app1/cash-drop-reconciler", cashDropReconcilerRoutes);
 app.use("/api/bank-drop", bankDropRoutes);
 app.use("/api/admin-settings", adminSettingsRoutes);
+app.use("/api/drive-image", driveImageRoutes);
 
 // Health check endpoint (includes database check)
 app.get('/health', async (req, res) => {
@@ -62,7 +76,8 @@ app.get('/health', async (req, res) => {
   } catch (err) {
     dbStatus = 'error';
     console.error('Health check DB error:', err.message);
-    return res.status(503).json({ status: 'error', database: 'error', message: err.message });
+    res.status(503).json({ status: 'error', database: 'error', message: err.message });
+    return;
   }
   res.json({ status: 'ok', database: dbStatus });
 });
@@ -75,18 +90,21 @@ app.use((err, req, res, next) => {
 });
 
 async function start() {
+  // Listen first so /ping and /health are reachable even if DB is slow or down
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Ping (no DB): http://localhost:${PORT}/ping`);
+    console.log(`Health (with DB): http://localhost:${PORT}/health`);
+  });
+
   try {
     await initDatabase();
     console.log('Database: OK');
   } catch (err) {
     console.error('Database: FAILED -', err.message || err);
     console.error('Ensure MySQL is running and .env has DB_HOST, DB_USER, DB_PASSWORD, DB_NAME.');
-    process.exit(1);
+    // Do not exit: server stays up so /ping works and /health returns 503
   }
-  app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/health`);
-  });
 }
 start();
 

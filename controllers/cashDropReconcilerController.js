@@ -1,6 +1,7 @@
 import { CashDropReconciler } from '../models/cashDropReconcilerModel.js';
 import { CashDrop } from '../models/cashDropModel.js';
 import { User } from '../models/authModel.js';
+import { getDriveImageProxyUrl } from '../services/googleDriveService.js';
 
 export const getCashDropReconcilers = async (req, res) => {
   try {
@@ -23,7 +24,7 @@ export const getCashDropReconcilers = async (req, res) => {
       
       if (reconciler.label_image) {
         const baseUrl = req.protocol + '://' + req.get('host');
-        result.label_image_url = `${baseUrl}${reconciler.label_image}`;
+        result.label_image_url = reconciler.label_image.startsWith('http') ? (getDriveImageProxyUrl(baseUrl, reconciler.label_image) || reconciler.label_image) : `${baseUrl}${reconciler.label_image}`;
       }
       
       return result;
@@ -58,10 +59,10 @@ export const updateCashDropReconciler = async (req, res) => {
         notes: null // Clear notes when unreconciling
       });
       
-      // Add image URL if present
+      // Add image URL if present (Drive URL as-is or local with baseUrl)
       if (updated && updated.label_image) {
         const baseUrl = req.protocol + '://' + req.get('host');
-        updated.label_image_url = `${baseUrl}${updated.label_image}`;
+        updated.label_image_url = updated.label_image.startsWith('http') ? (getDriveImageProxyUrl(baseUrl, updated.label_image) || updated.label_image) : `${baseUrl}${updated.label_image}`;
       }
       
       return res.json(updated);
@@ -137,10 +138,10 @@ export const updateCashDropReconciler = async (req, res) => {
       }
     }
     
-    // Add image URL if present
+    // Add image URL if present (Drive URL as-is or local with baseUrl)
     if (updated && updated.label_image) {
       const baseUrl = req.protocol + '://' + req.get('host');
-      updated.label_image_url = `${baseUrl}${updated.label_image}`;
+      updated.label_image_url = updated.label_image.startsWith('http') ? (getDriveImageProxyUrl(baseUrl, updated.label_image) || updated.label_image) : `${baseUrl}${updated.label_image}`;
     }
     
     res.json(updated);
