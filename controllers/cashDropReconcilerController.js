@@ -88,8 +88,8 @@ export const updateCashDropReconciler = async (req, res) => {
     const hasDelta = Math.abs(reconcileDelta) > 0.01;
 
     // When there is a delta, require custom denominations (so CD dashboard and bank drop use counted breakdown)
-    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies'];
-    const denominationValues = { hundreds: 100, fifties: 50, twenties: 20, tens: 10, fives: 5, twos: 2, ones: 1, half_dollars: 0.5, quarters: 0.25, dimes: 0.1, nickels: 0.05, pennies: 0.01 };
+    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies', 'quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls'];
+    const denominationValues = { hundreds: 100, fifties: 50, twenties: 20, tens: 10, fives: 5, twos: 2, ones: 1, half_dollars: 0.5, quarters: 0.25, dimes: 0.1, nickels: 0.05, pennies: 0.01, quarter_rolls: 10, dime_rolls: 5, nickel_rolls: 2, penny_rolls: 0.5 };
     let customDenoms = null;
     if (hasDelta) {
       const provided = {};

@@ -74,13 +74,17 @@ export const createCashDrop = async (req, res) => {
       twenties: req.body.twenties || 0,
       tens: req.body.tens || 0,
       fives: req.body.fives || 0,
-      twos: req.body.twos || 0,
+      twos: 0,
       ones: req.body.ones || 0,
-      half_dollars: req.body.half_dollars || req.body.halfDollars || 0,
+      half_dollars: 0,
       quarters: req.body.quarters || 0,
       dimes: req.body.dimes || 0,
       nickels: req.body.nickels || 0,
       pennies: req.body.pennies || 0,
+      quarter_rolls: req.body.quarter_rolls || req.body.quarterRolls || 0,
+      dime_rolls: req.body.dime_rolls || req.body.dimeRolls || 0,
+      nickel_rolls: req.body.nickel_rolls || req.body.nickelRolls || 0,
+      penny_rolls: req.body.penny_rolls || req.body.pennyRolls || 0,
       ws_label_amount: req.body.ws_label_amount || 0,
       variance: req.body.variance || 0,
       label_image: labelImagePath,
@@ -313,14 +317,19 @@ export const updateCashDrop = async (req, res) => {
       }
     }
     
-    // Update denominations
-    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 
-                                'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies'];
+    // Update denominations (twos and half_dollars no longer used; store 0)
+    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones',
+                                'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies',
+                                'quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls'];
     denominationFields.forEach(field => {
       if (req.body[field] !== undefined) {
-        updateData[field] = parseInt(req.body[field]) || 0;
+        updateData[field] = field === 'twos' || field === 'half_dollars' ? 0 : (parseInt(req.body[field]) || 0);
       }
     });
+    if (req.body.quarterRolls !== undefined && updateData.quarter_rolls === undefined) updateData.quarter_rolls = parseInt(req.body.quarterRolls) || 0;
+    if (req.body.dimeRolls !== undefined && updateData.dime_rolls === undefined) updateData.dime_rolls = parseInt(req.body.dimeRolls) || 0;
+    if (req.body.nickelRolls !== undefined && updateData.nickel_rolls === undefined) updateData.nickel_rolls = parseInt(req.body.nickelRolls) || 0;
+    if (req.body.pennyRolls !== undefined && updateData.penny_rolls === undefined) updateData.penny_rolls = parseInt(req.body.pennyRolls) || 0;
     
     // Update other fields
     if (req.body.drop_amount !== undefined) updateData.drop_amount = parseFloat(req.body.drop_amount);

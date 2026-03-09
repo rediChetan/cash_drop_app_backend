@@ -8,8 +8,9 @@ export const CashDrop = {
         user_id, drawer_entry_id, workstation, shift_number, date,
         drop_amount, hundreds, fifties, twenties, tens, fives, twos, ones,
         half_dollars, quarters, dimes, nickels, pennies,
+        quarter_rolls, dime_rolls, nickel_rolls, penny_rolls,
         ws_label_amount, variance, label_image, notes, status, submitted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       data.user_id,
       data.drawer_entry_id || null,
@@ -22,13 +23,17 @@ export const CashDrop = {
       data.twenties || 0,
       data.tens || 0,
       data.fives || 0,
-      data.twos || 0,
+      0,
       data.ones || 0,
-      data.half_dollars || 0,
+      0,
       data.quarters || 0,
       data.dimes || 0,
       data.nickels || 0,
       data.pennies || 0,
+      data.quarter_rolls || 0,
+      data.dime_rolls || 0,
+      data.nickel_rolls || 0,
+      data.penny_rolls || 0,
       data.ws_label_amount || 0,
       data.variance || 0,
       data.label_image || null,
@@ -134,14 +139,14 @@ export const CashDrop = {
     const fields = [];
     const values = [];
     
-    // Update denominations
-    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 
-                                'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies'];
-    
+    // Update denominations (twos and half_dollars no longer used; set to 0 if passed)
+    const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones',
+                                'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies',
+                                'quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls'];
     denominationFields.forEach(field => {
       if (data[field] !== undefined) {
         fields.push(`${field} = ?`);
-        values.push(data[field]);
+        values.push(field === 'twos' || field === 'half_dollars' ? 0 : data[field]);
       }
     });
     

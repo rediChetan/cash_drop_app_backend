@@ -117,7 +117,7 @@ export const updateCashDropDenominations = async (req, res) => {
       return res.status(404).json({ error: 'Cash drop not found' });
     }
     
-    // Recalculate drop_amount if denominations changed
+    // Recalculate drop_amount if denominations changed (rolls: quarter 40×0.25=$10, dime 50×0.10=$5, nickel 40×0.05=$2, penny 50×0.01=$0.50)
     const denominationValues = {
       hundreds: 100,
       fifties: 50,
@@ -132,13 +132,16 @@ export const updateCashDropDenominations = async (req, res) => {
       nickels: 0.05,
       pennies: 0.01
     };
-    
+    const rollValues = { quarter_rolls: 10, dime_rolls: 5, nickel_rolls: 2, penny_rolls: 0.5 };
     let newDropAmount = 0;
     Object.keys(denominationValues).forEach(denom => {
       const count = updateData[denom] !== undefined ? updateData[denom] : existingDrop[denom];
-      newDropAmount += count * denominationValues[denom];
+      newDropAmount += (count || 0) * denominationValues[denom];
     });
-    
+    Object.keys(rollValues).forEach(roll => {
+      const count = updateData[roll] !== undefined ? updateData[roll] : (existingDrop[roll] || 0);
+      newDropAmount += (count || 0) * rollValues[roll];
+    });
     updateData.drop_amount = newDropAmount;
     
     const updated = await CashDrop.update(parseInt(id), updateData);
@@ -179,7 +182,7 @@ export const getBankDropSummary = async (req, res) => {
       return res.status(404).json({ error: 'No valid cash drops found' });
     }
     
-    // Calculate totals
+    // Calculate totals (rolls: quarter_rolls×$10, dime_rolls×$5, nickel_rolls×$2, penny_rolls×$0.50)
     const totals = {
       hundreds: 0,
       fifties: 0,
@@ -192,9 +195,12 @@ export const getBankDropSummary = async (req, res) => {
       quarters: 0,
       dimes: 0,
       nickels: 0,
-      pennies: 0
+      pennies: 0,
+      quarter_rolls: 0,
+      dime_rolls: 0,
+      nickel_rolls: 0,
+      penny_rolls: 0
     };
-    
     drops.forEach(drop => {
       totals.hundreds += drop.hundreds || 0;
       totals.fifties += drop.fifties || 0;
@@ -208,10 +214,12 @@ export const getBankDropSummary = async (req, res) => {
       totals.dimes += drop.dimes || 0;
       totals.nickels += drop.nickels || 0;
       totals.pennies += drop.pennies || 0;
+      totals.quarter_rolls += drop.quarter_rolls || 0;
+      totals.dime_rolls += drop.dime_rolls || 0;
+      totals.nickel_rolls += drop.nickel_rolls || 0;
+      totals.penny_rolls += drop.penny_rolls || 0;
     });
-    
-    // Calculate total amount
-    const totalAmount = 
+    const totalAmount =
       totals.hundreds * 100 +
       totals.fifties * 50 +
       totals.twenties * 20 +
@@ -223,7 +231,11 @@ export const getBankDropSummary = async (req, res) => {
       totals.quarters * 0.25 +
       totals.dimes * 0.1 +
       totals.nickels * 0.05 +
-      totals.pennies * 0.01;
+      totals.pennies * 0.01 +
+      totals.quarter_rolls * 10 +
+      totals.dime_rolls * 5 +
+      totals.nickel_rolls * 2 +
+      totals.penny_rolls * 0.5;
     
     res.json({
       cash_drops: drops,

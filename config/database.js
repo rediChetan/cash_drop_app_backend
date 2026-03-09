@@ -246,6 +246,22 @@ const initDatabase = async () => {
       // Ignore errors
     }
 
+    // Add roll columns to cash_drops if they don't exist (quarter: 40×$0.25=$10, dime: 50×$0.10=$5, nickel: 40×$0.05=$2, penny: 50×$0.01=$0.50)
+    try {
+      const [cols] = await connection.query(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cash_drops'
+        AND COLUMN_NAME IN ('quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls')
+      `, [dbConfig.database]);
+      const existing = cols.map(c => c.COLUMN_NAME);
+      if (!existing.includes('quarter_rolls')) await connection.query(`ALTER TABLE cash_drops ADD COLUMN quarter_rolls INT DEFAULT 0`);
+      if (!existing.includes('dime_rolls')) await connection.query(`ALTER TABLE cash_drops ADD COLUMN dime_rolls INT DEFAULT 0`);
+      if (!existing.includes('nickel_rolls')) await connection.query(`ALTER TABLE cash_drops ADD COLUMN nickel_rolls INT DEFAULT 0`);
+      if (!existing.includes('penny_rolls')) await connection.query(`ALTER TABLE cash_drops ADD COLUMN penny_rolls INT DEFAULT 0`);
+    } catch (e) {
+      // Ignore
+    }
+
     // Admin Settings table
     await connection.query(`
       CREATE TABLE IF NOT EXISTS admin_settings (

@@ -29,7 +29,8 @@ export const CashDropReconciler = {
         cd.label_image,
         cd.notes,
         cd.hundreds, cd.fifties, cd.twenties, cd.tens, cd.fives, cd.twos, cd.ones,
-        cd.half_dollars, cd.quarters, cd.dimes, cd.nickels, cd.pennies
+        cd.half_dollars, cd.quarters, cd.dimes, cd.nickels, cd.pennies,
+        cd.quarter_rolls, cd.dime_rolls, cd.nickel_rolls, cd.penny_rolls
       FROM cash_drop_reconcilers cdr
       JOIN cash_drops cd ON cdr.drop_entry_id = cd.id
       JOIN users u ON cd.user_id = u.id
@@ -61,6 +62,7 @@ export const CashDropReconciler = {
         cd.ignore_reason,
         cd.hundreds, cd.fifties, cd.twenties, cd.tens, cd.fives, cd.twos, cd.ones,
         cd.half_dollars, cd.quarters, cd.dimes, cd.nickels, cd.pennies,
+        cd.quarter_rolls, cd.dime_rolls, cd.nickel_rolls, cd.penny_rolls,
         COALESCE(cdr.admin_count_amount, cd.drop_amount) as reconciled_amount,
         COALESCE(cdr.reconcile_delta, 0) as reconcile_delta,
         cd.submitted_at
@@ -117,6 +119,7 @@ export const CashDropReconciler = {
         cd.ignore_reason,
         cd.hundreds, cd.fifties, cd.twenties, cd.tens, cd.fives, cd.twos, cd.ones,
         cd.half_dollars, cd.quarters, cd.dimes, cd.nickels, cd.pennies,
+        cd.quarter_rolls, cd.dime_rolls, cd.nickel_rolls, cd.penny_rolls,
         COALESCE(cdr.admin_count_amount, cd.drop_amount) as reconciled_amount,
         COALESCE(cdr.reconcile_delta, 0) as reconcile_delta,
         cd.submitted_at
