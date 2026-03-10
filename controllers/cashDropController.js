@@ -5,7 +5,8 @@ import { User } from '../models/authModel.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { getPSTDateTime, isAllowedCashDropDate } from '../utils/dateUtils.js';
+import { getPSTDateTime } from '../utils/dateUtils.js';
+import { isDateAllowedForCashDrop } from '../services/cashDropDateService.js';
 import { uploadImageToDrive, isDriveEnabled, getDriveImageProxyUrl } from '../services/googleDriveService.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -46,8 +47,11 @@ export const createCashDrop = async (req, res) => {
       }
     }
 
-    if (status === 'submitted' && date && !isAllowedCashDropDate(date)) {
-      return res.status(400).json({ error: 'Cash drop can only be submitted for the current day or the previous day (PST).' });
+    if (status === 'submitted' && date) {
+      const allowed = await isDateAllowedForCashDrop(date);
+      if (!allowed) {
+        return res.status(400).json({ error: 'Cash drop is not allowed for this date (check admin settings: allowed date range and bank drop rule).' });
+      }
     }
 
     // Block duplicate: one drop per (workstation, shift_number, date)
@@ -240,11 +244,14 @@ export const updateCashDrop = async (req, res) => {
       return res.status(404).json({ error: 'Cash drop not found' });
     }
 
-    // When submitting: only allow current or previous day (PST)
+    // When submitting: validate date against admin settings
     if (req.body.status === 'submitted') {
       const dropDate = req.body.date || currentDrop.date;
-      if (dropDate && !isAllowedCashDropDate(dropDate)) {
-        return res.status(400).json({ error: 'Cash drop can only be submitted for the current day or the previous day (PST).' });
+      if (dropDate) {
+        const allowed = await isDateAllowedForCashDrop(dropDate);
+        if (!allowed) {
+          return res.status(400).json({ error: 'Cash drop is not allowed for this date (check admin settings: allowed date range and bank drop rule).' });
+        }
       }
     }
 

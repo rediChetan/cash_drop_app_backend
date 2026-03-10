@@ -29,12 +29,33 @@ export const getPSTYesterday = () => {
 
 /**
  * Return true if dateStr is today or yesterday in PST (for cash drop submit validation).
+ * Used when no admin settings are available (fallback).
  */
 export const isAllowedCashDropDate = (dateStr) => {
   if (!dateStr) return false;
   const today = getPSTDate();
   const yesterday = getPSTYesterday();
   return dateStr === today || dateStr === yesterday;
+};
+
+/**
+ * Check if a date is allowed for cash drop given admin settings.
+ * @param {string} dateStr - YYYY-MM-DD
+ * @param {string} today - YYYY-MM-DD (PST today)
+ * @param {string} dateRange - 'last_2_days' | 'all_previous'
+ * @param {boolean} onlyBeforeBankDrop - if true, date is disallowed when bank drop is already done for that day
+ * @param {boolean} isBankDropDone - whether bank drop has been done for that date
+ */
+export const isAllowedCashDropDateWithSettings = (dateStr, today, dateRange, onlyBeforeBankDrop, isBankDropDone) => {
+  if (!dateStr || !today) return false;
+  if (dateStr > today) return false; // no future dates
+  if (dateRange === 'last_2_days') {
+    const yesterday = getPSTYesterday();
+    if (dateStr !== today && dateStr !== yesterday) return false;
+  }
+  // dateRange === 'all_previous' allows any date <= today
+  if (onlyBeforeBankDrop && isBankDropDone) return false;
+  return true;
 };
 
 /**
