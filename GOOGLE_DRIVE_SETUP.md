@@ -1,6 +1,6 @@
 # Google Drive image storage (OAuth)
 
-Cash drop receipt images can be stored in Google Drive with folder structure **Year → MonthName → Day**, and file names like **s1ws2_1739123456789.jpg** (shift + workstation + timestamp).
+Cash drop receipt images can be stored in Google Drive with folder structure **Year → MonthName** (no day subfolder), and file names like **1_Register1_02112026143022.png** (`{shift}_{workstation}_mmddyyyyhhmmss.ext`).
 
 ## Enable Drive storage with OAuth
 
@@ -46,8 +46,8 @@ Cash drop receipt images can be stored in Google Drive with folder structure **Y
 
 ## Folder and file layout
 
-- **Path**: `Year/MonthName/Day` (e.g. `2026/March/9`). Month is the full name; day has no leading zero.
-- **File name**: `s{shift}ws{workstation}_{timestamp}.ext` (e.g. `s1ws2_1739123456789.jpg`).
+- **Path**: `Year/MonthName` (e.g. `2026/March`). No day subfolder.
+- **File name**: `{shift}_{workstation}_mmddyyyyhhmmss.ext` (e.g. `1_Register1_02112026143022.png`). The date/time in the name is the upload moment (month, day, year, hour, minute, second).
 
 Files are shared as “anyone with the link can view” so the app can display them.
 

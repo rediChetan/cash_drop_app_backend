@@ -1,6 +1,6 @@
 /**
- * Google Drive storage: upload images to Year/MonthName/Day folder structure (e.g. 2026/March/9).
- * Image name format: s{shift}ws{workstation}_{timestamp}.ext (e.g. s1ws2_1739123456789.jpg)
+ * Google Drive storage: upload images to Year/MonthName folder structure (e.g. 2026/March).
+ * Image name format: {shift}_{workstation}_mmddyyyyhhmmss.ext (e.g. 1_Register1_02112026143022.png)
  * Uses OAuth2: GOOGLE_DRIVE_ENABLED, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN.
  */
 
@@ -82,43 +82,47 @@ async function getOrCreateFolder(parentId, folderName) {
 }
 
 /**
- * Get or create folder path Year/MonthName/Day (e.g. 2026/March/9).
+ * Get or create folder path Year/MonthName (e.g. 2026/March). No day subfolder.
  * rootFolderId is optional (use drive root if not set).
- * year, month, day are numbers or strings from date (e.g. 2026, 3, 9).
+ * year, month are numbers or strings from date (e.g. 2026, 3).
  */
-async function getOrCreateFolderPath(year, month, day, rootFolderId) {
+async function getOrCreateFolderPath(year, month, rootFolderId) {
   const d = drive();
   if (!d) return null;
 
   const y = String(year);
   const monthNum = parseInt(String(month).replace(/^0+/, ''), 10) || 1;
   const monthName = MONTH_NAMES[Math.max(0, monthNum - 1)] || MONTH_NAMES[0];
-  const dayNum = parseInt(String(day).replace(/^0+/, ''), 10) || 1;
-  const dayName = String(dayNum);
 
   const yearId = await getOrCreateFolder(rootFolderId || 'root', y);
   if (!yearId) return null;
   const monthId = await getOrCreateFolder(yearId, monthName);
-  if (!monthId) return null;
-  const dayId = await getOrCreateFolder(monthId, dayName);
-  return dayId;
+  return monthId;
 }
 
 /**
- * Build image name: s{shift}ws{workstation}_{timestamp}.ext
- * e.g. s1ws1_1739123456789.jpg
+ * Build image name: {shift}_{workstation}_mmddyyyyhhmmss.ext
+ * e.g. 1_Register1_02112026143022.png
  */
-function buildImageName(workstation, shiftNumber, extension = '.jpg') {
-  const ws = String(workstation || 'ws').replace(/\W/g, '').toLowerCase();
-  const s = String(shiftNumber ?? '1').replace(/\W/g, '');
-  const base = `s${s}ws${ws}_${Date.now()}`;
-  if (!extension.startsWith('.')) extension = '.' + extension;
-  return base + extension;
+function buildImageName(workstation, shiftNumber, extension = '.png') {
+  const safe = (v) => String(v ?? '').replace(/[\s/\\:*?"<>|]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'unknown';
+  const shift = safe(shiftNumber);
+  const ws = safe(workstation);
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const base = `${shift}_${ws}_${mm}${dd}${yyyy}${hh}${min}${ss}`;
+  const ext = extension.startsWith('.') ? extension : '.' + extension;
+  return base + ext;
 }
 
 /**
- * Upload image buffer to Drive at year/month/day folder with name s1ws1_timestamp.ext.
- * dateStr: YYYY-MM-DD. workstation, shiftNumber: for filename.
+ * Upload image buffer to Drive at year/monthname folder with name {shift}_{workstation}_mmddyyyyhhmmss.ext.
+ * dateStr: YYYY-MM-DD (used for path year/month). workstation, shiftNumber: for filename.
  * Returns public view URL or null.
  */
 export async function uploadImageToDrive(buffer, dateStr, workstation, shiftNumber, originalFileName) {
@@ -128,10 +132,10 @@ export async function uploadImageToDrive(buffer, dateStr, workstation, shiftNumb
     return null;
   }
 
-  const ext = path.extname(originalFileName || '.jpg').toLowerCase() || '.jpg';
-  const mimeType = MIME_BY_EXT[ext] || 'image/jpeg';
-  const [y, m, day] = (dateStr || '').split(/[-/]/);
-  if (!y || !m || !day) {
+  const ext = path.extname(originalFileName || '.png').toLowerCase() || '.png';
+  const mimeType = MIME_BY_EXT[ext] || 'image/png';
+  const [y, m] = (dateStr || '').split(/[-/]/);
+  if (!y || !m) {
     console.warn('Google Drive: invalid date for path (use YYYY-MM-DD):', dateStr);
     return null;
   }
@@ -139,7 +143,7 @@ export async function uploadImageToDrive(buffer, dateStr, workstation, shiftNumb
   const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID || null;
   let folderId;
   try {
-    folderId = await getOrCreateFolderPath(y, m, day, rootId);
+    folderId = await getOrCreateFolderPath(y, m, rootId);
   } catch (err) {
     console.error('Google Drive: folder create failed:', err.message, err.response?.data || '');
     return null;
