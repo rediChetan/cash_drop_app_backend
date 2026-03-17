@@ -23,9 +23,9 @@ export const CashDrop = {
       data.twenties || 0,
       data.tens || 0,
       data.fives || 0,
-      0,
+      data.twos || 0,
       data.ones || 0,
-      0,
+      data.half_dollars || 0,
       data.quarters || 0,
       data.dimes || 0,
       data.nickels || 0,
@@ -139,14 +139,14 @@ export const CashDrop = {
     const fields = [];
     const values = [];
     
-    // Update denominations (twos and half_dollars no longer used; set to 0 if passed)
+    // Update denominations (include twos and half_dollars so saved values display everywhere)
     const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones',
                                 'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies',
                                 'quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls'];
     denominationFields.forEach(field => {
       if (data[field] !== undefined) {
         fields.push(`${field} = ?`);
-        values.push(field === 'twos' || field === 'half_dollars' ? 0 : data[field]);
+        values.push(data[field]);
       }
     });
     

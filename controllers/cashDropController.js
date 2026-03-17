@@ -12,6 +12,17 @@ import { uploadImageToDrive, isDriveEnabled, getDriveImageProxyUrl } from '../se
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Single source of truth for drop amount from denomination counts (must match frontend denom config including twos/half_dollars)
+const DENOMINATION_VALUES = { hundreds: 100, fifties: 50, twenties: 20, tens: 10, fives: 5, twos: 2, ones: 1, half_dollars: 0.5, quarters: 0.25, dimes: 0.1, nickels: 0.05, pennies: 0.01 };
+const ROLL_VALUES = { quarter_rolls: 10, dime_rolls: 5, nickel_rolls: 2, penny_rolls: 0.5 };
+
+function computeDropAmountFromDenominations(denom) {
+  let sum = 0;
+  Object.keys(DENOMINATION_VALUES).forEach(f => { sum += (parseFloat(denom[f]) || 0) * DENOMINATION_VALUES[f]; });
+  Object.keys(ROLL_VALUES).forEach(f => { sum += (parseFloat(denom[f]) || 0) * ROLL_VALUES[f]; });
+  return Math.round(sum * 100) / 100;
+}
+
 export const createCashDrop = async (req, res) => {
   try {
     let labelImagePath = null;
@@ -78,9 +89,9 @@ export const createCashDrop = async (req, res) => {
       twenties: req.body.twenties || 0,
       tens: req.body.tens || 0,
       fives: req.body.fives || 0,
-      twos: 0,
+      twos: req.body.twos || 0,
       ones: req.body.ones || 0,
-      half_dollars: 0,
+      half_dollars: req.body.half_dollars || 0,
       quarters: req.body.quarters || 0,
       dimes: req.body.dimes || 0,
       nickels: req.body.nickels || 0,
@@ -96,7 +107,11 @@ export const createCashDrop = async (req, res) => {
       status: status,
       submitted_at: status === 'drafted' ? null : getPSTDateTime()
     };
-    
+    // Backend computes drop_amount from denominations so validation/bank drop always match
+    data.drop_amount = computeDropAmountFromDenominations(data);
+    const wsLabel = parseFloat(data.ws_label_amount) || 0;
+    data.variance = Math.round((data.drop_amount - wsLabel) * 100) / 100;
+
     const drop = await CashDrop.create(data);
     
     // Auto-create reconciler entry only for submitted cash drops (not drafts)
@@ -324,22 +339,32 @@ export const updateCashDrop = async (req, res) => {
       }
     }
     
-    // Update denominations (twos and half_dollars no longer used; store 0)
+    // Update denominations (include twos and half_dollars so saved values display everywhere)
     const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones',
                                 'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies',
                                 'quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls'];
     denominationFields.forEach(field => {
       if (req.body[field] !== undefined) {
-        updateData[field] = field === 'twos' || field === 'half_dollars' ? 0 : (parseInt(req.body[field]) || 0);
+        updateData[field] = parseInt(req.body[field]) || 0;
       }
     });
     if (req.body.quarterRolls !== undefined && updateData.quarter_rolls === undefined) updateData.quarter_rolls = parseInt(req.body.quarterRolls) || 0;
     if (req.body.dimeRolls !== undefined && updateData.dime_rolls === undefined) updateData.dime_rolls = parseInt(req.body.dimeRolls) || 0;
     if (req.body.nickelRolls !== undefined && updateData.nickel_rolls === undefined) updateData.nickel_rolls = parseInt(req.body.nickelRolls) || 0;
     if (req.body.pennyRolls !== undefined && updateData.penny_rolls === undefined) updateData.penny_rolls = parseInt(req.body.pennyRolls) || 0;
-    
+
+    const hasDenominationUpdate = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies', 'quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls'].some(f => updateData[f] !== undefined);
+    if (hasDenominationUpdate) {
+      const currentDrop = await CashDrop.findById(parseInt(id));
+      const merged = { ...(currentDrop || {}), ...updateData };
+      updateData.drop_amount = computeDropAmountFromDenominations(merged);
+      const wsLabel = parseFloat(merged.ws_label_amount ?? updateData.ws_label_amount) || 0;
+      updateData.variance = Math.round((updateData.drop_amount - wsLabel) * 100) / 100;
+    } else if (req.body.drop_amount !== undefined) {
+      updateData.drop_amount = parseFloat(req.body.drop_amount);
+    }
+
     // Update other fields
-    if (req.body.drop_amount !== undefined) updateData.drop_amount = parseFloat(req.body.drop_amount);
     if (req.body.ws_label_amount !== undefined) updateData.ws_label_amount = parseFloat(req.body.ws_label_amount);
     if (req.body.variance !== undefined) updateData.variance = parseFloat(req.body.variance);
     if (req.body.notes !== undefined) updateData.notes = req.body.notes;

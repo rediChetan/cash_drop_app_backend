@@ -16,9 +16,9 @@ export const createCashDrawer = async (req, res) => {
       twenties: req.body.twenties || 0,
       tens: req.body.tens || 0,
       fives: req.body.fives || 0,
-      twos: 0,
+      twos: req.body.twos || 0,
       ones: req.body.ones || 0,
-      half_dollars: 0,
+      half_dollars: req.body.half_dollars || 0,
       quarters: req.body.quarters || 0,
       dimes: req.body.dimes || 0,
       nickels: req.body.nickels || 0,
@@ -96,13 +96,16 @@ export const updateCashDrawer = async (req, res) => {
                                 'quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls'];
     denominationFields.forEach(field => {
       if (req.body[field] !== undefined) {
-        updateData[field] = (field === 'twos' || field === 'half_dollars') ? 0 : (parseInt(req.body[field]) || 0);
+        updateData[field] = parseInt(req.body[field]) || 0;
       }
     });
     
-    // Handle camelCase for halfDollars
+    // Handle camelCase for halfDollars / twos
     if (req.body.halfDollars !== undefined && updateData.half_dollars === undefined) {
       updateData.half_dollars = parseInt(req.body.halfDollars) || 0;
+    }
+    if (req.body.twos !== undefined && updateData.twos === undefined) {
+      updateData.twos = parseInt(req.body.twos) || 0;
     }
     
     // Handle camelCase for coin rolls
