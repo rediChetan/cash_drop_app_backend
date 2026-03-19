@@ -2,6 +2,11 @@
  * Google Drive storage: upload images to Year/MonthName folder structure (e.g. 2026/March).
  * Image name format: {shift}_{workstation}_mmddyyyy.ext (e.g. 1_Register1_02112026.png); mmddyyyy = cash drop date
  * Uses OAuth2: GOOGLE_DRIVE_ENABLED, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN.
+ *
+ * All cash drop receipt images are saved: when Drive is enabled they are uploaded here; otherwise they are
+ * saved locally under media/cash_drop_labels/. APIs return label_image_url (Drive via /api/drive-image proxy,
+ * local via baseUrl + path) so the frontend can display them. Keep Drive credentials valid and do not delete
+ * files so images remain retrievable; the frontend shows "Image unavailable" if a URL fails to load.
  */
 
 import { google } from 'googleapis';
