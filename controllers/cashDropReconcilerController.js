@@ -54,6 +54,15 @@ export const updateCashDropReconciler = async (req, res) => {
     
     // If unreconciling (setting is_reconciled to false)
     if (is_reconciled === false) {
+      const linkedDrop = await CashDrop.findById(reconciler.drop_entry_id);
+      if (!linkedDrop) {
+        return res.status(404).json({ error: 'Associated cash drop not found' });
+      }
+      const isBankDropped = linkedDrop.bank_dropped === true || linkedDrop.status === 'bank_dropped';
+      if (isBankDropped) {
+        return res.status(400).json({ error: 'Cannot unreconcile: this cash drop has been bank dropped.' });
+      }
+
       const updated = await CashDropReconciler.update(id, {
         is_reconciled: false,
         notes: null // Clear notes when unreconciling
