@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { getPSTDateTime } from '../utils/dateUtils.js';
-import { isDateAllowedForCashDrop } from '../services/cashDropDateService.js';
+import { isDateAllowedForCashDrop, isCashDropReceiptImageRequired } from '../services/cashDropDateService.js';
 import { uploadImageToDrive, isDriveEnabled, getDriveImageProxyUrl } from '../services/googleDriveService.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -62,6 +62,13 @@ export const createCashDrop = async (req, res) => {
       const allowed = await isDateAllowedForCashDrop(date);
       if (!allowed) {
         return res.status(400).json({ error: 'Cash drop is not allowed for this date (check admin settings: allowed date range and bank drop rule).' });
+      }
+    }
+
+    if (status === 'submitted') {
+      const imageRequired = await isCashDropReceiptImageRequired();
+      if (imageRequired && !labelImagePath) {
+        return res.status(400).json({ error: 'A cash drop receipt image is required. Upload an image before submitting.' });
       }
     }
 
@@ -372,6 +379,16 @@ export const updateCashDrop = async (req, res) => {
       updateData.status = req.body.status;
       if (req.body.status === 'submitted') {
         updateData.submitted_at = getPSTDateTime();
+      }
+    }
+
+    const finalStatus = updateData.status !== undefined ? updateData.status : currentDrop.status;
+    if (finalStatus === 'submitted') {
+      const imageRequired = await isCashDropReceiptImageRequired();
+      const finalLabelImage =
+        updateData.label_image !== undefined ? updateData.label_image : currentDrop.label_image;
+      if (imageRequired && !finalLabelImage) {
+        return res.status(400).json({ error: 'A cash drop receipt image is required. Upload an image before submitting.' });
       }
     }
     

@@ -3,15 +3,23 @@ import { getPSTDate } from '../utils/dateUtils.js';
 import { isAllowedCashDropDateWithSettings } from '../utils/dateUtils.js';
 import { isBankDropDoneForDate } from '../services/cashDropDateService.js';
 
-const parseSettings = (raw) => ({
-  shifts: raw.shifts ? JSON.parse(raw.shifts) : [],
-  workstations: raw.workstations ? JSON.parse(raw.workstations) : [],
-  starting_amount: raw.starting_amount ? parseFloat(raw.starting_amount) : 200.00,
-  max_cash_drops_per_day: raw.max_cash_drops_per_day ? parseInt(raw.max_cash_drops_per_day) : 10,
-  cash_drop_date_range: raw.cash_drop_date_range || 'last_2_days',
-  // Always true: customers cannot add cash drops for days where bank drop is already done
-  cash_drop_only_before_bank_drop: true
-});
+const parseSettings = (raw) => {
+  const imgReq = raw.cash_drop_receipt_image_required;
+  const cash_drop_receipt_image_required =
+    String(imgReq ?? 'false').toLowerCase() === 'true' ||
+    imgReq === '1' ||
+    imgReq === 1;
+  return {
+    shifts: raw.shifts ? JSON.parse(raw.shifts) : [],
+    workstations: raw.workstations ? JSON.parse(raw.workstations) : [],
+    starting_amount: raw.starting_amount ? parseFloat(raw.starting_amount) : 200.00,
+    max_cash_drops_per_day: raw.max_cash_drops_per_day ? parseInt(raw.max_cash_drops_per_day) : 10,
+    cash_drop_date_range: raw.cash_drop_date_range || 'last_2_days',
+    cash_drop_receipt_image_required,
+    // Always true: customers cannot add cash drops for days where bank drop is already done
+    cash_drop_only_before_bank_drop: true
+  };
+};
 
 export const getAdminSettings = async (req, res) => {
   try {
@@ -25,7 +33,7 @@ export const getAdminSettings = async (req, res) => {
 
 export const updateAdminSettings = async (req, res) => {
   try {
-    const { shifts, workstations, starting_amount, max_cash_drops_per_day, cash_drop_date_range } = req.body;
+    const { shifts, workstations, starting_amount, max_cash_drops_per_day, cash_drop_date_range, cash_drop_receipt_image_required } = req.body;
 
     if (shifts) {
       await AdminSettings.set('shifts', JSON.stringify(shifts));
@@ -41,6 +49,14 @@ export const updateAdminSettings = async (req, res) => {
     }
     if (cash_drop_date_range !== undefined) {
       await AdminSettings.set('cash_drop_date_range', cash_drop_date_range === 'all_previous' ? 'all_previous' : 'last_2_days');
+    }
+    if (cash_drop_receipt_image_required !== undefined) {
+      const required =
+        cash_drop_receipt_image_required === true ||
+        cash_drop_receipt_image_required === 'true' ||
+        cash_drop_receipt_image_required === 1 ||
+        cash_drop_receipt_image_required === '1';
+      await AdminSettings.set('cash_drop_receipt_image_required', required ? 'true' : 'false');
     }
 
     const updatedSettings = await AdminSettings.getAll();

@@ -4,11 +4,23 @@ import { getPSTDate } from '../utils/dateUtils.js';
 import { isAllowedCashDropDateWithSettings } from '../utils/dateUtils.js';
 
 function parseSettings(raw) {
+  const imgReq = raw.cash_drop_receipt_image_required;
+  const imageRequired =
+    String(imgReq ?? 'false').toLowerCase() === 'true' ||
+    imgReq === '1' ||
+    imgReq === 1;
   return {
     cash_drop_date_range: raw.cash_drop_date_range || 'last_2_days',
     // Always true: no cash drops for days where bank drop is done
-    cash_drop_only_before_bank_drop: true
+    cash_drop_only_before_bank_drop: true,
+    cash_drop_receipt_image_required: imageRequired
   };
+}
+
+/** Whether admins require a receipt image on cash drop submit (stored in admin_settings). */
+export async function isCashDropReceiptImageRequired() {
+  const raw = await AdminSettings.getAll();
+  return parseSettings(raw).cash_drop_receipt_image_required;
 }
 
 /** Check if bank drop has been done for a given date. */

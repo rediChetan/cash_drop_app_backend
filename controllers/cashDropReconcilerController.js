@@ -87,33 +87,33 @@ export const updateCashDropReconciler = async (req, res) => {
     const reconcileDelta = adminCounted - systemDrop;
     const hasDelta = Math.abs(reconcileDelta) > 0.01;
 
-    // When there is a delta, require custom denominations (so CD dashboard and bank drop use counted breakdown)
+    // Save adjusted denominations whenever they are provided (for both reconcile types).
+    // For delta, denominations are required so bank drop uses counted breakdown.
     const denominationFields = ['hundreds', 'fifties', 'twenties', 'tens', 'fives', 'twos', 'ones', 'half_dollars', 'quarters', 'dimes', 'nickels', 'pennies', 'quarter_rolls', 'dime_rolls', 'nickel_rolls', 'penny_rolls'];
     const denominationValues = { hundreds: 100, fifties: 50, twenties: 20, tens: 10, fives: 5, twos: 2, ones: 1, half_dollars: 0.5, quarters: 0.25, dimes: 0.1, nickels: 0.05, pennies: 0.01, quarter_rolls: 10, dime_rolls: 5, nickel_rolls: 2, penny_rolls: 0.5 };
     let customDenoms = null;
-    if (hasDelta) {
+    const hasCustomDenominationPayload = denominationFields.some(
+      (f) => req.body[f] !== undefined && req.body[f] !== null
+    );
+    if (hasCustomDenominationPayload) {
       // Build full set of denominations from request (missing => 0) so cash drop gets a complete overwrite
       const provided = {};
-      let anyProvided = false;
       for (const f of denominationFields) {
         const val = (req.body[f] !== undefined && req.body[f] !== null) ? (parseFloat(req.body[f]) || 0) : 0;
         provided[f] = val;
-        if (val !== 0) anyProvided = true;
       }
-      if (anyProvided) {
-        const rawSum = denominationFields.reduce((s, f) => s + (provided[f] || 0) * (denominationValues[f] || 0), 0);
-        const sum = Math.round(rawSum * 100) / 100;
-        if (Math.abs(sum - adminCounted) > 0.02) {
-          return res.status(400).json({ error: `Custom denominations total ($${sum.toFixed(2)}) must equal counted amount ($${adminCounted.toFixed(2)}).` });
-        }
-        // Store as integers for DB INT columns; summary and display use these same values
-        customDenoms = {};
-        for (const f of denominationFields) {
-          customDenoms[f] = Math.round(Number(provided[f]) || 0);
-        }
-      } else {
-        return res.status(400).json({ error: 'When counted amount differs from drop amount, you must provide custom denominations that match what you counted.' });
+      const rawSum = denominationFields.reduce((s, f) => s + (provided[f] || 0) * (denominationValues[f] || 0), 0);
+      const sum = Math.round(rawSum * 100) / 100;
+      if (Math.abs(sum - adminCounted) > 0.02) {
+        return res.status(400).json({ error: `Custom denominations total ($${sum.toFixed(2)}) must equal counted amount ($${adminCounted.toFixed(2)}).` });
       }
+      // Store as integers for DB INT columns; summary and display use these same values
+      customDenoms = {};
+      for (const f of denominationFields) {
+        customDenoms[f] = Math.round(Number(provided[f]) || 0);
+      }
+    } else if (hasDelta) {
+      return res.status(400).json({ error: 'When counted amount differs from drop amount, you must provide custom denominations that match what you counted.' });
     }
 
     // Update the reconciler with notes if provided
@@ -129,7 +129,7 @@ export const updateCashDropReconciler = async (req, res) => {
     
     const updated = await CashDropReconciler.update(id, updateData);
     
-    // Update cash drop: status to 'reconciled', and when there's a delta persist custom denominations so CD dashboard / bank drop summary match
+    // Update cash drop: status to 'reconciled', and when custom denominations were provided persist them so CD dashboard / bank drop summary match
     if (is_reconciled === true && updated && updated.drop_entry_id) {
       const dropUpdate = { status: 'reconciled' };
       if (customDenoms) {
