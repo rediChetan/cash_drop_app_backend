@@ -5,7 +5,7 @@ import { User } from '../models/authModel.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { getPSTDateTime, isDateStrictlyBeforePSTToday } from '../utils/dateUtils.js';
+import { getPSTDateTime, isStrictlyBeforePSTYesterday } from '../utils/dateUtils.js';
 import { isDateAllowedForCashDrop, isCashDropReceiptImageRequired } from '../services/cashDropDateService.js';
 import { uploadImageToDrive, isDriveEnabled, getDriveImageProxyUrl } from '../services/googleDriveService.js';
 
@@ -31,8 +31,8 @@ export const createCashDrop = async (req, res) => {
     const shift_number = req.body.shift_number;
     const status = req.body.status || 'submitted';
 
-    if (date && isDateStrictlyBeforePSTToday(date) && !req.user?.is_admin) {
-      return res.status(403).json({ error: 'Only administrators can record cash drops for dates before today.' });
+    if (date && isStrictlyBeforePSTYesterday(date) && !req.user?.is_admin) {
+      return res.status(403).json({ error: 'Cash drop is not allowed for this date.' });
     }
 
     // Handle file upload if present (Google Drive year/month/day or local fallback)
@@ -184,8 +184,8 @@ export const validateCashDrop = async (req, res) => {
       return res.status(400).json({ error: 'workstation, shift_number, and date are required.' });
     }
 
-    if (isDateStrictlyBeforePSTToday(date) && !req.user?.is_admin) {
-      return res.status(403).json({ error: 'Only administrators can record cash drops for dates before today.' });
+    if (isStrictlyBeforePSTYesterday(date) && !req.user?.is_admin) {
+      return res.status(403).json({ error: 'Cash drop is not allowed for this date.' });
     }
 
     const existing = await CashDrop.findByWorkstationShiftDate(workstation, shift_number, date);
@@ -282,8 +282,8 @@ export const updateCashDrop = async (req, res) => {
 
     const effectiveDate =
       req.body.date !== undefined && req.body.date !== '' ? String(req.body.date).slice(0, 10) : currentDrop.date;
-    if (isDateStrictlyBeforePSTToday(effectiveDate) && !req.user?.is_admin) {
-      return res.status(403).json({ error: 'Only administrators can record cash drops for dates before today.' });
+    if (isStrictlyBeforePSTYesterday(effectiveDate) && !req.user?.is_admin) {
+      return res.status(403).json({ error: 'Cash drop is not allowed for this date.' });
     }
 
     // When submitting: validate date against admin settings

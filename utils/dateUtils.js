@@ -58,12 +58,19 @@ export const isAllowedCashDropDateWithSettings = (dateStr, today, dateRange, onl
   return true;
 };
 
-/** True when dateStr (YYYY-MM-DD) is strictly before today in PST. Used to restrict past-day cash drops to admins. */
+/** True when dateStr (YYYY-MM-DD) is strictly before today in PST. */
 export const isDateStrictlyBeforePSTToday = (dateStr) => {
   if (!dateStr) return false;
   const d = String(dateStr).slice(0, 10);
   const today = getPSTDate();
   return d < today;
+};
+
+/** True when dateStr is strictly before yesterday in PST (non-admins may only submit for today and yesterday). */
+export const isStrictlyBeforePSTYesterday = (dateStr) => {
+  if (!dateStr) return false;
+  const d = String(dateStr).slice(0, 10);
+  return d < getPSTYesterday();
 };
 
 /**
