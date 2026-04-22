@@ -1,4 +1,5 @@
 import { AdminSettings } from '../models/adminSettingsModel.js';
+import pool from '../config/database.js';
 import { getPSTDate } from '../utils/dateUtils.js';
 import { isAllowedCashDropDateWithSettings } from '../utils/dateUtils.js';
 import { isBankDropDoneForDate } from '../services/cashDropDateService.js';
@@ -67,7 +68,7 @@ export const updateAdminSettings = async (req, res) => {
   }
 };
 
-/** GET /api/admin-settings/cash-drop-calendar?year=2025&month=2 - returns { dates: [{ date, canCashDrop, isCurrentDay }] } for that month (PST). */
+/** GET .../cash-drop-calendar — { dates: [{ date, canCashDrop, atMaxCashDrops, needsBankDropCountConfirm, ... }] } (PST). */
 export const getCashDropCalendar = async (req, res) => {
   try {
     const year = parseInt(req.query.year, 10);
@@ -79,21 +80,84 @@ export const getCashDropCalendar = async (req, res) => {
     const parsed = parseSettings(settings);
     const today = getPSTDate();
     const daysInMonth = new Date(year, month, 0).getDate();
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    const maxPerDay = Math.max(1, parseInt(String(parsed.max_cash_drops_per_day ?? 10), 10) || 10);
+
+    /** mysql2 may coerce DATE_FORMAT to Date — build YMD in SQL so `d` is a plain calendar string. */
+    const rowDateToYmd = (v) => {
+      if (v == null || v === '') return '';
+      if (typeof v === 'string') return v.length >= 10 ? v.slice(0, 10) : v;
+      if (typeof Buffer !== 'undefined' && Buffer.isBuffer?.(v)) return v.toString('utf8').slice(0, 10);
+      if (v instanceof Date) {
+        const y = v.getUTCFullYear();
+        const mo = String(v.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(v.getUTCDate()).padStart(2, '0');
+        return `${y}-${mo}-${day}`;
+      }
+      const s = String(v);
+      const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+      return m ? m[1] : s.slice(0, 10);
+    };
+
+    // Per day: total submitted drops + how many are already bank-dropped (same GROUP BY for ONLY_FULL_GROUP_BY)
+    const [countRows] = await pool.execute(
+      `SELECT DATE_FORMAT(cd.date, '%Y-%m-%d') AS d,
+        COUNT(*) AS cnt,
+        SUM(CASE WHEN (cd.bank_dropped = 1 OR cd.status = 'bank_dropped') THEN 1 ELSE 0 END) AS bank_cnt
+       FROM cash_drops cd
+       WHERE cd.date >= ? AND cd.date <= ?
+         AND (cd.ignored IS NULL OR cd.ignored = 0)
+         AND cd.status NOT IN ('drafted', 'ignored')
+       GROUP BY DATE_FORMAT(cd.date, '%Y-%m-%d')`,
+      [monthStart, monthEnd]
+    );
+    const dropStatsByDate = new Map(
+      (countRows || []).map((row) => [
+        rowDateToYmd(row.d),
+        {
+          cnt: Number(row.cnt) || 0,
+          bankCnt: Number(row.bank_cnt) || 0,
+        },
+      ])
+    );
+
     const dates = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const isCurrentDay = dateStr === today;
-      const isBankDropDone = await isBankDropDoneForDate(dateStr);
+      const stats = dropStatsByDate.get(dateStr) ?? { cnt: 0, bankCnt: 0 };
+      const countTowardLimit = stats.cnt;
+      const bankDroppedCount = stats.bankCnt;
+      const atMaxCashDrops = countTowardLimit >= maxPerDay;
+      const isBankDropDoneActual = await isBankDropDoneForDate(dateStr);
+      /**
+       * Orange / confirm: at least one drop is bank-dropped this day, and you are still under the daily max
+       * (includes: all bank-dropped but fewer than max drops, OR mix of bank-dropped + submitted/reconciled).
+       */
+      const needsBankDropCountConfirm =
+        bankDroppedCount >= 1 && countTowardLimit < maxPerDay;
+      const effectiveBankDoneForPolicy =
+        isBankDropDoneActual && !needsBankDropCountConfirm;
       const canCashDrop = isAllowedCashDropDateWithSettings(
         dateStr,
         today,
         parsed.cash_drop_date_range,
         parsed.cash_drop_only_before_bank_drop,
-        isBankDropDone
+        effectiveBankDoneForPolicy
       );
-      dates.push({ date: dateStr, canCashDrop, isCurrentDay });
+      dates.push({
+        date: dateStr,
+        canCashDrop,
+        isCurrentDay,
+        atMaxCashDrops,
+        dropCountTowardLimit: countTowardLimit,
+        bankDroppedCount,
+        maxCashDropsPerDay: maxPerDay,
+        needsBankDropCountConfirm,
+      });
     }
-    res.json({ dates });
+    res.json({ dates, maxCashDropsPerDay: maxPerDay });
   } catch (error) {
     console.error('Cash drop calendar error:', error);
     res.status(500).json({ error: 'Internal server error' });

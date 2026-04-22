@@ -8,8 +8,8 @@ export const CashDrawer = {
         hundreds, fifties, twenties, tens, fives, twos, ones,
         half_dollars, quarters, dimes, nickels, pennies,
         quarter_rolls, dime_rolls, nickel_rolls, penny_rolls,
-        total_cash, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        total_cash, status, submitted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       data.user_id,
       data.workstation,
@@ -33,7 +33,8 @@ export const CashDrawer = {
       data.nickel_rolls || 0,
       data.penny_rolls || 0,
       data.total_cash,
-      data.status || 'submitted'
+      data.status || 'submitted',
+      data.submitted_at != null ? data.submitted_at : null
     ]);
     
     return CashDrawer.findById(result.insertId);
@@ -65,11 +66,13 @@ export const CashDrawer = {
   },
 
   findByDateRange: async (dateFrom, dateTo, userId = null) => {
+    const rangeExpr = 'DATE(cd.date)';
+    const sortExpr = 'cd.date';
     let query = `
       SELECT cd.*, COALESCE(u.name, 'Unknown') as user_name
       FROM cash_drawers cd
       LEFT JOIN users u ON cd.user_id = u.id
-      WHERE cd.date >= ? AND cd.date <= ?
+      WHERE ${rangeExpr} >= ? AND ${rangeExpr} <= ?
     `;
     
     const params = [dateFrom, dateTo];
@@ -79,7 +82,7 @@ export const CashDrawer = {
       params.push(userId);
     }
     
-    query += ' ORDER BY cd.date DESC';
+    query += ` ORDER BY ${sortExpr} DESC, cd.submitted_at DESC`;
     
     const [rows] = await pool.execute(query, params);
     return rows;
@@ -123,6 +126,10 @@ export const CashDrawer = {
     if (data.status !== undefined) {
       fields.push('status = ?');
       values.push(data.status);
+    }
+    if (data.submitted_at !== undefined) {
+      fields.push('submitted_at = ?');
+      values.push(data.submitted_at);
     }
     
     if (fields.length === 0) return null;

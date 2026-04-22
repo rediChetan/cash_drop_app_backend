@@ -146,6 +146,14 @@ export const createCashDrop = async (req, res) => {
         }
       }
     }
+
+    if (drop?.drawer_entry_id && drop.submitted_at) {
+      try {
+        await CashDrawer.update(drop.drawer_entry_id, { submitted_at: drop.submitted_at });
+      } catch (e) {
+        console.warn('Could not sync cash drawer submitted_at from cash drop:', e);
+      }
+    }
     
     res.status(201).json(drop);
   } catch (error) {
@@ -440,6 +448,14 @@ export const updateCashDrop = async (req, res) => {
             console.error('Error creating reconciler entry:', reconcilerError);
           }
         }
+      }
+    }
+
+    if (updated?.drawer_entry_id && updated.submitted_at) {
+      try {
+        await CashDrawer.update(updated.drawer_entry_id, { submitted_at: updated.submitted_at });
+      } catch (e) {
+        console.warn('Could not sync cash drawer submitted_at from cash drop:', e);
       }
     }
     

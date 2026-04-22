@@ -64,11 +64,14 @@ export const CashDrop = {
   },
 
   findByDateRange: async (dateFrom, dateTo, userId = null) => {
+    // Range and dashboard date log use business/register date, not submission time.
+    const rangeExpr = 'DATE(cd.date)';
+    const sortExpr = 'cd.date';
     let query = `
       SELECT cd.*, COALESCE(u.name, 'Unknown') as user_name, cd.submitted_at
       FROM cash_drops cd
       LEFT JOIN users u ON cd.user_id = u.id
-      WHERE cd.date >= ? AND cd.date <= ?
+      WHERE ${rangeExpr} >= ? AND ${rangeExpr} <= ?
     `;
     
     const params = [dateFrom, dateTo];
@@ -78,7 +81,7 @@ export const CashDrop = {
       params.push(userId);
     }
     
-    query += ' ORDER BY cd.date DESC';
+    query += ` ORDER BY ${sortExpr} DESC, cd.submitted_at DESC`;
     
     const [rows] = await pool.execute(query, params);
     return rows.map(row => ({

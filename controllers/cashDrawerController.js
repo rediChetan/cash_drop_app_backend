@@ -1,6 +1,7 @@
 import { CashDrawer } from '../models/cashDrawerModel.js';
 import { CashDrop } from '../models/cashDropModel.js';
 import { User } from '../models/authModel.js';
+import { getPSTDateTime } from '../utils/dateUtils.js';
 
 export const createCashDrawer = async (req, res) => {
   try {
@@ -30,6 +31,9 @@ export const createCashDrawer = async (req, res) => {
       total_cash: req.body.total_cash || req.body.totalCash,
       status: req.body.status || 'submitted'
     };
+    if (data.status === 'submitted') {
+      data.submitted_at = getPSTDateTime();
+    }
     
     // Validate required fields
     if (!data.workstation || !data.shift_number || !data.date || !data.starting_cash || data.total_cash === undefined) {
@@ -74,6 +78,11 @@ export const createCashDrawer = async (req, res) => {
 export const updateCashDrawer = async (req, res) => {
   try {
     const { id } = req.params;
+    const drawerId = parseInt(id, 10);
+    const existingDrawer = await CashDrawer.findById(drawerId);
+    if (!existingDrawer) {
+      return res.status(404).json({ error: 'Cash drawer not found' });
+    }
     const updateData = {};
     
     // Handle both snake_case and camelCase
@@ -125,12 +134,21 @@ export const updateCashDrawer = async (req, res) => {
     if (req.body.status !== undefined) {
       updateData.status = req.body.status;
     }
+
+    if (updateData.status !== undefined) {
+      if (updateData.status === 'submitted') {
+        const linkedDrop = await CashDrop.findByDrawerId(drawerId);
+        updateData.submitted_at = linkedDrop?.submitted_at || getPSTDateTime();
+      } else if (updateData.status === 'drafted' || updateData.status === 'ignored') {
+        updateData.submitted_at = null;
+      }
+    }
     
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     
-    const updated = await CashDrawer.update(parseInt(id), updateData);
+    const updated = await CashDrawer.update(drawerId, updateData);
     if (!updated) {
       return res.status(404).json({ error: 'Cash drawer not found or update failed' });
     }

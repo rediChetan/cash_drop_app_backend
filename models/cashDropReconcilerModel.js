@@ -54,6 +54,8 @@ export const CashDropReconciler = {
   },
 
   findByDateRange: async (dateFrom, dateTo, userId = null, onlyReconciled = false) => {
+    const rangeExpr = 'DATE(cd.date)';
+    const sortExpr = 'cd.date';
     let query = `
       SELECT 
         cdr.*,
@@ -78,7 +80,7 @@ export const CashDropReconciler = {
       FROM cash_drop_reconcilers cdr
       JOIN cash_drops cd ON cdr.drop_entry_id = cd.id
       LEFT JOIN users u ON cd.user_id = u.id
-      WHERE cdr.date >= ? AND cdr.date <= ?
+      WHERE ${rangeExpr} >= ? AND ${rangeExpr} <= ?
         AND (cd.ignored IS NULL OR cd.ignored = 0)
         AND cd.status NOT IN ('drafted', 'ignored')
     `;
@@ -94,7 +96,7 @@ export const CashDropReconciler = {
       params.push(userId);
     }
     
-    query += ' ORDER BY cdr.date DESC';
+    query += ` ORDER BY ${sortExpr} DESC, cd.submitted_at DESC`;
     
     const [rows] = await pool.execute(query, params);
     

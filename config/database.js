@@ -72,6 +72,7 @@ const initDatabase = async () => {
         penny_rolls INT DEFAULT 0,
         total_cash DECIMAL(10, 2) NOT NULL,
         status ENUM('drafted', 'submitted', 'ignored') DEFAULT 'submitted',
+        submitted_at DATETIME DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
@@ -213,6 +214,19 @@ const initDatabase = async () => {
         await connection.query(`
           ALTER TABLE cash_drawers ADD COLUMN status ENUM('drafted', 'submitted', 'ignored') DEFAULT 'submitted'
         `);
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+
+    // Add submitted_at to cash_drawers if it doesn't exist (aligns with cash_drops.submitted_at when linked)
+    try {
+      const [saCols] = await connection.query(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cash_drawers' AND COLUMN_NAME = 'submitted_at'
+      `, [dbConfig.database]);
+      if (saCols.length === 0) {
+        await connection.query(`ALTER TABLE cash_drawers ADD COLUMN submitted_at DATETIME DEFAULT NULL`);
       }
     } catch (e) {
       // Ignore errors
