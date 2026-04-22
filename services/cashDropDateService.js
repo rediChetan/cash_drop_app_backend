@@ -53,3 +53,57 @@ export async function isDateAllowedForCashDrop(dateStr) {
     isBankDropDone
   );
 }
+
+/**
+ * Same per-day counts as cash-drop calendar (submitted/reconciled/bank_dropped; excludes drafted/ignored).
+ * Used to verify `accept_bank_drop_mismatch` only when the day is in the orange "under max with bank activity" state.
+ */
+async function getCashDropDayCountsForPolicy(dateStr) {
+  const [rows] = await pool.execute(
+    `SELECT
+       COUNT(*) AS cnt,
+       SUM(CASE WHEN (cd.bank_dropped = 1 OR cd.status = 'bank_dropped') THEN 1 ELSE 0 END) AS bank_cnt
+     FROM cash_drops cd
+     WHERE cd.date = ?
+       AND (cd.ignored IS NULL OR cd.ignored = 0)
+       AND cd.status NOT IN ('drafted', 'ignored')`,
+    [dateStr]
+  );
+  const row = rows?.[0] || {};
+  return {
+    cnt: Number(row.cnt) || 0,
+    bankCnt: Number(row.bank_cnt) || 0
+  };
+}
+
+/**
+ * When the calendar shows needsBankDropCountConfirm (orange), policy uses effective "bank done" = false.
+ * This path is only valid if server-side stats match that scenario; callers must still send user acknowledgement.
+ */
+export async function isDateAllowedWhenBankDropMismatchAcknowledged(dateStr) {
+  if (!dateStr) return false;
+  const raw = await AdminSettings.getAll();
+  const settings = parseSettings(raw);
+  const maxPerDay = Math.max(1, parseInt(String(raw.max_cash_drops_per_day ?? 10), 10) || 10);
+  const { cnt, bankCnt } = await getCashDropDayCountsForPolicy(dateStr);
+  const needsBankDropCountConfirm = bankCnt >= 1 && cnt < maxPerDay;
+  if (!needsBankDropCountConfirm) return false;
+  const today = getPSTDate();
+  return isAllowedCashDropDateWithSettings(
+    dateStr,
+    today,
+    settings.cash_drop_date_range,
+    settings.cash_drop_only_before_bank_drop,
+    false
+  );
+}
+
+/** Submitted cash drops: optional mismatch acknowledgement (must match calendar orange rules on the server). */
+export async function isDateAllowedForSubmittedCashDrop(dateStr, acceptBankDropMismatch) {
+  if (!dateStr) return false;
+  if (acceptBankDropMismatch) {
+    const ok = await isDateAllowedWhenBankDropMismatchAcknowledged(dateStr);
+    if (ok) return true;
+  }
+  return isDateAllowedForCashDrop(dateStr);
+}

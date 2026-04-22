@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { getPSTDateTime, isStrictlyBeforePSTYesterday } from '../utils/dateUtils.js';
-import { isDateAllowedForCashDrop, isCashDropReceiptImageRequired } from '../services/cashDropDateService.js';
+import { isDateAllowedForSubmittedCashDrop, isCashDropReceiptImageRequired } from '../services/cashDropDateService.js';
 import { uploadImageToDrive, isDriveEnabled, getDriveImageProxyUrl } from '../services/googleDriveService.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +15,12 @@ const __dirname = path.dirname(__filename);
 // Single source of truth for drop amount from denomination counts (must match frontend denom config including twos/half_dollars)
 const DENOMINATION_VALUES = { hundreds: 100, fifties: 50, twenties: 20, tens: 10, fives: 5, twos: 2, ones: 1, half_dollars: 0.5, quarters: 0.25, dimes: 0.1, nickels: 0.05, pennies: 0.01 };
 const ROLL_VALUES = { quarter_rolls: 10, dime_rolls: 5, nickel_rolls: 2, penny_rolls: 0.5 };
+
+function isTruthyAcceptBankDropMismatch(val) {
+  if (val === true || val === 1) return true;
+  const s = String(val ?? '').toLowerCase();
+  return s === 'true' || s === '1';
+}
 
 function computeDropAmountFromDenominations(denom) {
   let sum = 0;
@@ -63,7 +69,8 @@ export const createCashDrop = async (req, res) => {
     }
 
     if (status === 'submitted' && date) {
-      const allowed = await isDateAllowedForCashDrop(date);
+      const acceptMismatch = isTruthyAcceptBankDropMismatch(req.body.accept_bank_drop_mismatch);
+      const allowed = await isDateAllowedForSubmittedCashDrop(date, acceptMismatch);
       if (!allowed) {
         return res.status(400).json({ error: 'Cash drop is not allowed for this date (check admin settings: allowed date range and bank drop rule).' });
       }
@@ -298,7 +305,8 @@ export const updateCashDrop = async (req, res) => {
     if (req.body.status === 'submitted') {
       const dropDate = req.body.date || currentDrop.date;
       if (dropDate) {
-        const allowed = await isDateAllowedForCashDrop(dropDate);
+        const acceptMismatch = isTruthyAcceptBankDropMismatch(req.body.accept_bank_drop_mismatch);
+        const allowed = await isDateAllowedForSubmittedCashDrop(dropDate, acceptMismatch);
         if (!allowed) {
           return res.status(400).json({ error: 'Cash drop is not allowed for this date (check admin settings: allowed date range and bank drop rule).' });
         }
