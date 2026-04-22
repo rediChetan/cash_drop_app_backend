@@ -201,11 +201,14 @@ export const getUserById = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, isAdmin } = req.body;
-    
+    const { name } = req.body;
+    // Dashboard sends `is_admin` (JSON); accept `isAdmin` as well for other clients.
+    const adminFlag =
+      req.body.isAdmin !== undefined ? req.body.isAdmin : req.body.is_admin;
+
     const updateData = {};
     if (name !== undefined) updateData.name = name;
-    if (isAdmin !== undefined) updateData.is_admin = isAdmin;
+    if (adminFlag !== undefined) updateData.is_admin = adminFlag;
     
     const user = await User.update(parseInt(id), updateData);
     
