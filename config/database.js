@@ -21,6 +21,8 @@ const dbConfig = {
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
   connectTimeout: 10000,  // 10s - fail fast if DB unreachable
+  // Keep DATETIME as "YYYY-MM-DD HH:mm:ss" strings (Pacific wall clock from getPSTDateTime)
+  dateStrings: true,
 };
 
 // Create connection pool
